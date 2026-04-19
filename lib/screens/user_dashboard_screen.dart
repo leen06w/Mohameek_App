@@ -1,0 +1,1848 @@
+import 'package:flutter/material.dart';
+
+import '../app.dart';
+import '../core/theme/app_colors.dart';
+import '../core/widgets/app_shell.dart';
+import '../core/widgets/ui.dart';
+import '../data/mock_data.dart';
+import '../models/app_user.dart';
+import '../models/lawyer.dart';
+import '../models/request_item.dart';
+import '../services/auth_service.dart';
+
+class UserDashboardScreen extends StatefulWidget {
+  const UserDashboardScreen({super.key});
+
+  @override
+  State<UserDashboardScreen> createState() => _UserDashboardScreenState();
+}
+
+class _UserDashboardScreenState extends State<UserDashboardScreen> {
+  AppUser? user;
+
+  late List<_UserNotificationItem> _notifications;
+  int _unreadNotificationsCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _seedNotifications();
+    _loadUser();
+  }
+
+  void _seedNotifications() {
+    _notifications = [
+      const _UserNotificationItem(
+        title: 'رسالة جديدة من المحامي',
+        body: 'تم الرد على استفسارك بخصوص القضية التجارية.',
+        time: 'الآن',
+        icon: Icons.mark_chat_unread_rounded,
+        type: _NotificationType.message,
+        isUnread: true,
+      ),
+      const _UserNotificationItem(
+        title: 'تم تحديث حالة الطلب',
+        body: 'تم قبول طلبك ويمكنك الآن إكمال عملية الدفع.',
+        time: 'قبل 10 دقائق',
+        icon: Icons.check_circle_rounded,
+        type: _NotificationType.request,
+        isUnread: true,
+      ),
+      const _UserNotificationItem(
+        title: 'تذكير بموعدك القادم',
+        body: 'لديك موعد استشارة غدًا الساعة 10:00 صباحًا.',
+        time: 'قبل ساعة',
+        icon: Icons.calendar_month_rounded,
+        type: _NotificationType.appointment,
+        isUnread: true,
+      ),
+      const _UserNotificationItem(
+        title: 'تنبيه من النظام',
+        body: 'تم تحديث سياسة الخصوصية داخل التطبيق.',
+        time: 'أمس',
+        icon: Icons.notifications_active_rounded,
+        type: _NotificationType.system,
+        isUnread: false,
+      ),
+    ];
+
+    _unreadNotificationsCount =
+        _notifications.where((item) => item.isUnread).length;
+  }
+
+  Future<void> _loadUser() async {
+    final u = await AuthService().getCurrentUser();
+    if (!mounted) return;
+    setState(() => user = u);
+  }
+
+  void _openNotificationsSheet() {
+    final hadUnread = _notifications.any((item) => item.isUnread);
+
+    if (hadUnread) {
+      setState(() {
+        _notifications = _notifications
+            .map((item) => item.copyWith(isUnread: false))
+            .toList();
+        _unreadNotificationsCount = 0;
+      });
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _NotificationsHeader(
+                  unreadCount: _unreadNotificationsCount,
+                  totalCount: _notifications.length,
+                ),
+                const SizedBox(height: 14),
+                if (_notifications.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 28),
+                    child: Text(
+                      'لا توجد إشعارات حالياً',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 520),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: _notifications.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final item = _notifications[index];
+                        return _NotificationCard(item: item);
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _openAskLawyerSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        final lawyers = MockData.lawyers;
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _SheetHeader(
+                  title: 'اسأل محامي',
+                  subtitle: 'اختر المحامي المناسب لبدء محادثة مباشرة معه',
+                  icon: Icons.support_agent_outlined,
+                ),
+                const SizedBox(height: 14),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 460),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: lawyers.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final lawyer = lawyers[index];
+                      return _LawyerSelectionCard(
+                        lawyer: lawyer,
+                        onTap: () {
+                          Navigator.pop(context);
+                          _openLawyerChat(lawyer);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _openLawyerChat(Lawyer lawyer) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _LawyerChatScreen(
+          lawyer: lawyer,
+          currentUserName: user?.name ?? 'مستخدم',
+        ),
+      ),
+    );
+  }
+
+  void _openAppointmentsSheet() {
+    final List<RequestItem> requests = MockData.requests;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _SheetHeader(
+                  title: 'مواعيدي',
+                  subtitle: 'استعراض الطلبات والمواعيد الحالية بشكل منظم',
+                  icon: Icons.event_note_outlined,
+                ),
+                const SizedBox(height: 14),
+                if (requests.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Text(
+                      'لا توجد مواعيد أو طلبات حالية',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 500),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: requests.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final item = requests[index];
+                        return _AppointmentCard(request: item);
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _openSupportScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const _SupportHelpScreen(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName =
+        (user?.name.trim().isNotEmpty ?? false) ? user!.name.trim() : 'وليد';
+
+    return AppShell(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        backgroundColor: AppColors.primary,
+        elevation: 0,
+        centerTitle: true,
+        leading: Builder(
+          builder: (context) => IconButton(
+            onPressed: () => Scaffold.of(context).openDrawer(),
+            icon: const Icon(
+              Icons.menu_rounded,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.balance, color: Colors.white),
+            SizedBox(width: 8),
+            Text(
+              'محاميك',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsetsDirectional.only(end: 6),
+            child: _NotificationBellButton(
+              count: _unreadNotificationsCount,
+              onTap: _openNotificationsSheet,
+            ),
+          ),
+        ],
+      ),
+      drawer: _UserDrawer(
+        user: user,
+        onOpenSupport: _openSupportScreen,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppColors.primary, Color(0xCC123458)],
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
+              ),
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'مرحباً $displayName 👋',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'كيف يمكننا مساعدتك اليوم؟',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            childAspectRatio: 1.02,
+            children: [
+              _QuickAction(
+                icon: Icons.search,
+                title: 'البحث عن محامي',
+                onTap: () =>
+                    Navigator.pushNamed(context, AppRoutes.userSearch),
+              ),
+              _QuickAction(
+                icon: Icons.send_outlined,
+                title: 'طلباتي',
+                onTap: () =>
+                    Navigator.pushNamed(context, AppRoutes.userRequests),
+              ),
+              _QuickAction(
+                icon: Icons.description_outlined,
+                title: 'قضاياي',
+                onTap: () =>
+                    Navigator.pushNamed(context, AppRoutes.userCases),
+              ),
+              _QuickAction(
+                title: 'استشارة AI',
+                onTap: () =>
+                    Navigator.pushNamed(context, AppRoutes.userAiChat),
+                iconWidget: Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Image.asset(
+                      'assets/images/ai_avatar.png',
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+              _QuickAction(
+                icon: Icons.calendar_month_outlined,
+                title: 'مواعيدي',
+                onTap: _openAppointmentsSheet,
+              ),
+              _QuickAction(
+                icon: Icons.headset_mic_outlined,
+                title: 'اسأل محامي',
+                onTap: _openAskLawyerSheet,
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'محامون مميزون',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+              ),
+              TextButton(
+                onPressed: () =>
+                    Navigator.pushNamed(context, AppRoutes.userSearch),
+                child: const Text('عرض الكل'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...MockData.lawyers.take(3).map(
+                (lawyer) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _FeaturedLawyerCard(lawyer: lawyer),
+                ),
+              ),
+          const SizedBox(height: 8),
+          const Text(
+            'القضايا الأخيرة',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          ...MockData.userCases.take(2).map(
+                (item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: SectionCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                item.title,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: item.status == 'مكتملة'
+                                    ? const Color(0xFFEAF8EE)
+                                    : const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                item.status,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: item.status == 'مكتملة'
+                                      ? AppColors.success
+                                      : AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'آخر تحديث: ${item.updatedAt}',
+                          style: TextStyle(
+                            color:
+                                AppColors.foreground.withValues(alpha: 0.62),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        LinearProgressIndicator(
+                          value: item.progress / 100,
+                          borderRadius: BorderRadius.circular(999),
+                          backgroundColor: AppColors.secondary,
+                          color: AppColors.primary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NotificationBellButton extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+
+  const _NotificationBellButton({
+    required this.count,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final displayCount = count > 99 ? '99+' : '$count';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: SizedBox(
+          width: 46,
+          height: 46,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              const Center(
+                child: Icon(
+                  Icons.notifications_none_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
+              ),
+              if (count > 0)
+                PositionedDirectional(
+                  top: 6,
+                  end: 4,
+                  child: Container(
+                    constraints: const BoxConstraints(
+                      minWidth: 19,
+                      minHeight: 19,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE53935),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: AppColors.primary, width: 1.5),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x22000000),
+                          blurRadius: 6,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      displayCount,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationsHeader extends StatelessWidget {
+  final int unreadCount;
+  final int totalCount;
+
+  const _NotificationsHeader({
+    required this.unreadCount,
+    required this.totalCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 24,
+          backgroundColor: AppColors.primary.withValues(alpha: 0.10),
+          child: const Icon(
+            Icons.notifications_active_outlined,
+            color: AppColors.primary,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'الإشعارات والرسائل',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                unreadCount > 0
+                    ? 'لديك $unreadCount إشعار غير مقروء من أصل $totalCount'
+                    : 'تمت قراءة جميع الإشعارات',
+                style: TextStyle(
+                  color: AppColors.foreground.withValues(alpha: 0.65),
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NotificationCard extends StatelessWidget {
+  final _UserNotificationItem item;
+
+  const _NotificationCard({required this.item});
+
+  Color _iconBackground() {
+    switch (item.type) {
+      case _NotificationType.message:
+        return const Color(0xFFE8F0FE);
+      case _NotificationType.request:
+        return const Color(0xFFEAF8EE);
+      case _NotificationType.appointment:
+        return const Color(0xFFFFF4E5);
+      case _NotificationType.system:
+        return const Color(0xFFF3E8FF);
+    }
+  }
+
+  Color _iconColor() {
+    switch (item.type) {
+      case _NotificationType.message:
+        return AppColors.primary;
+      case _NotificationType.request:
+        return AppColors.success;
+      case _NotificationType.appointment:
+        return const Color(0xFFB45309);
+      case _NotificationType.system:
+        return const Color(0xFF7C3AED);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: item.isUnread ? const Color(0xFFF8FBFF) : Colors.white,
+        border: Border.all(
+          color: item.isUnread
+              ? const Color(0xFFD6E8FF)
+              : AppColors.border,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0E000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: _iconBackground(),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(item.icon, color: _iconColor()),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    if (item.isUnread)
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFE53935),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  item.body,
+                  style: TextStyle(
+                    color: AppColors.foreground.withValues(alpha: 0.72),
+                    height: 1.55,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  item.time,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.foreground.withValues(alpha: 0.50),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UserDrawer extends StatelessWidget {
+  final AppUser? user;
+  final VoidCallback onOpenSupport;
+
+  const _UserDrawer({
+    required this.user,
+    required this.onOpenSupport,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  const CircleAvatar(
+                    radius: 24,
+                    backgroundColor: AppColors.primary,
+                    child: Icon(Icons.person, color: Colors.white),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user?.name ?? 'مستخدم',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      Text(
+                        user?.email ?? '',
+                        style: TextStyle(
+                          color: AppColors.foreground.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              _DrawerItem(
+                icon: Icons.home,
+                title: 'الرئيسية',
+                onTap: () => Navigator.popAndPushNamed(
+                  context,
+                  AppRoutes.userDashboard,
+                ),
+              ),
+              _DrawerItem(
+                icon: Icons.search,
+                title: 'البحث',
+                onTap: () => Navigator.popAndPushNamed(
+                  context,
+                  AppRoutes.userSearch,
+                ),
+              ),
+              _DrawerItem(
+                icon: Icons.settings,
+                title: 'الإعدادات',
+                onTap: () => Navigator.popAndPushNamed(
+                  context,
+                  AppRoutes.userSettings,
+                ),
+              ),
+              _DrawerItem(
+                icon: Icons.help_outline,
+                title: 'الدعم والمساعدة',
+                onTap: () {
+                  Navigator.pop(context);
+                  onOpenSupport();
+                },
+              ),
+              const Spacer(),
+              ListTile(
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text(
+                  'تسجيل الخروج',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () async {
+                  await AuthService().logout();
+                  if (context.mounted) {
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      AppRoutes.login,
+                      (_) => false,
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DrawerItem extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+
+  const _DrawerItem({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      onTap: onTap,
+    );
+  }
+}
+
+class _QuickAction extends StatelessWidget {
+  final IconData? icon;
+  final Widget? iconWidget;
+  final String title;
+  final VoidCallback onTap;
+
+  const _QuickAction({
+    super.key,
+    this.icon,
+    this.iconWidget,
+    required this.title,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget finalIconWidget =
+        iconWidget ??
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Icon(icon, color: AppColors.primary),
+        );
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: SectionCard(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            finalIconWidget,
+            const SizedBox(height: 14),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FeaturedLawyerCard extends StatelessWidget {
+  final Lawyer lawyer;
+
+  const _FeaturedLawyerCard({required this.lawyer});
+
+  @override
+  Widget build(BuildContext context) {
+    return SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(Icons.person, color: AppColors.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      lawyer.name,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      lawyer.specialty,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.foreground.withValues(alpha: 0.62),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.star,
+                      size: 14,
+                      color: Color(0xFFA16207),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${lawyer.rating}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFFA16207),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${lawyer.cases} قضية',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.foreground.withValues(alpha: 0.6),
+                ),
+              ),
+              Text(
+                lawyer.city,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.foreground.withValues(alpha: 0.6),
+                ),
+              ),
+              Text(
+                '${lawyer.price} ر.س',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          PrimaryButton(
+            text: 'حجز استشارة',
+            onPressed: () => Navigator.pushNamed(
+              context,
+              AppRoutes.userBooking,
+              arguments: lawyer,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SheetHeader extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+
+  const _SheetHeader({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 24,
+          backgroundColor: AppColors.primary.withValues(alpha: 0.10),
+          child: Icon(icon, color: AppColors.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: AppColors.foreground.withValues(alpha: 0.65),
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LawyerSelectionCard extends StatelessWidget {
+  final Lawyer lawyer;
+  final VoidCallback onTap;
+
+  const _LawyerSelectionCard({
+    required this.lawyer,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(20),
+          color: Colors.white,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.person, color: AppColors.primary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    lawyer.name,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    lawyer.specialty,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.foreground.withValues(alpha: 0.65),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${lawyer.city} • ${lawyer.price} ر.س',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.foreground.withValues(alpha: 0.65),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_left_rounded),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AppointmentCard extends StatelessWidget {
+  final RequestItem request;
+
+  const _AppointmentCard({required this.request});
+
+  Color _statusBackground() {
+    switch (request.status) {
+      case 'accepted':
+        return const Color(0xFFEAF8EE);
+      case 'rejected':
+        return const Color(0xFFFEE2E2);
+      case 'negotiating':
+        return const Color(0xFFFEF3C7);
+      default:
+        return const Color(0xFFEFF6FF);
+    }
+  }
+
+  Color _statusForeground() {
+    switch (request.status) {
+      case 'accepted':
+        return AppColors.success;
+      case 'rejected':
+        return AppColors.destructive;
+      case 'negotiating':
+        return const Color(0xFFB45309);
+      default:
+        return AppColors.primary;
+    }
+  }
+
+  String _statusLabel() {
+    switch (request.status) {
+      case 'accepted':
+        return 'مقبول';
+      case 'rejected':
+        return 'مرفوض';
+      case 'negotiating':
+        return 'قيد التفاوض';
+      default:
+        return 'قيد الانتظار';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(20),
+        color: Colors.white,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  request.lawyerName,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: _statusBackground(),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  _statusLabel(),
+                  style: TextStyle(
+                    color: _statusForeground(),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            request.caseType,
+            style: TextStyle(
+              color: AppColors.foreground.withValues(alpha: 0.68),
+            ),
+          ),
+          const SizedBox(height: 8),
+          _DialogInfoRow(
+            label: 'نوع الاستشارة',
+            value: request.consultationType,
+          ),
+          _DialogInfoRow(label: 'التاريخ', value: request.preferredDate),
+          _DialogInfoRow(label: 'الوقت', value: request.preferredTime),
+          if ((request.price ?? '').isNotEmpty)
+            _DialogInfoRow(label: 'الرسوم', value: '${request.price} ر.س'),
+          if ((request.negotiationNote ?? '').isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              request.negotiationNote!,
+              style: TextStyle(
+                color: AppColors.foreground.withValues(alpha: 0.75),
+                height: 1.5,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DialogInfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _DialogInfoRow({
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(
+            color: AppColors.foreground,
+            fontSize: 14,
+            height: 1.5,
+          ),
+          children: [
+            TextSpan(
+              text: '$label: ',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            TextSpan(
+              text: value,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LawyerChatScreen extends StatefulWidget {
+  final Lawyer lawyer;
+  final String currentUserName;
+
+  const _LawyerChatScreen({
+    required this.lawyer,
+    required this.currentUserName,
+  });
+
+  @override
+  State<_LawyerChatScreen> createState() => _LawyerChatScreenState();
+}
+
+class _LawyerChatScreenState extends State<_LawyerChatScreen> {
+  final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+
+  late final List<_ChatMessage> _messages;
+
+  @override
+  void initState() {
+    super.initState();
+    _messages = [
+      _ChatMessage(
+        text:
+            'مرحبًا، أنا ${widget.lawyer.name}. يسعدني مساعدتك في ${widget.lawyer.specialty}. اكتب سؤالك وسأراجع تفاصيله معك.',
+        isUser: false,
+        time: 'الآن',
+      ),
+    ];
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _sendMessage() {
+    final text = _messageController.text.trim();
+    if (text.isEmpty) return;
+
+    setState(() {
+      _messages.add(
+        _ChatMessage(
+          text: text,
+          isUser: true,
+          time: 'الآن',
+        ),
+      );
+      _messageController.clear();
+    });
+
+    _scrollToBottom();
+
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+
+      setState(() {
+        _messages.add(
+          _ChatMessage(
+            text:
+                'تم استلام رسالتك. سأراجع استفسارك بخصوص "${widget.lawyer.specialty}" وأزوّدك برد أولي مناسب. يمكنك أيضًا إرفاق المستندات أو طلب موعد لاحقًا عند الحاجة.',
+            isUser: false,
+            time: 'الآن',
+          ),
+        );
+      });
+
+      _scrollToBottom();
+    });
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent + 120,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.lawyer.name,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            Text(
+              widget.lawyer.specialty,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.10),
+                  child: const Icon(Icons.person, color: AppColors.primary),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'المحادثة المباشرة مع ${widget.lawyer.name}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                final message = _messages[index];
+                final isUser = message.isUser;
+
+                return Align(
+                  alignment:
+                      isUser ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Container(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.78,
+                    ),
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isUser ? AppColors.primary : Colors.white,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(18),
+                        topRight: const Radius.circular(18),
+                        bottomLeft: Radius.circular(isUser ? 18 : 6),
+                        bottomRight: Radius.circular(isUser ? 6 : 18),
+                      ),
+                      border:
+                          isUser ? null : Border.all(color: AppColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          message.text,
+                          style: TextStyle(
+                            color: isUser ? Colors.white : AppColors.foreground,
+                            height: 1.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          message.time,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isUser
+                                ? Colors.white.withValues(alpha: 0.75)
+                                : AppColors.foreground.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x12000000),
+                  blurRadius: 12,
+                  offset: Offset(0, -4),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              top: false,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _messageController,
+                      minLines: 1,
+                      maxLines: 4,
+                      decoration: InputDecoration(
+                        hintText: 'اكتب رسالتك إلى المحامي...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide(color: AppColors.border),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: const BorderSide(
+                            color: AppColors.primary,
+                            width: 1.3,
+                          ),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 54,
+                    height: 54,
+                    child: ElevatedButton(
+                      onPressed: _sendMessage,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Icon(Icons.send_rounded),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChatMessage {
+  final String text;
+  final bool isUser;
+  final String time;
+
+  const _ChatMessage({
+    required this.text,
+    required this.isUser,
+    required this.time,
+  });
+}
+
+class _SupportHelpScreen extends StatelessWidget {
+  const _SupportHelpScreen();
+
+  void _showMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        title: const Text(
+          'الدعم والمساعدة',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppColors.primary, Color(0xCC123458)],
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
+              ),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'الدعم والمساعدة',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'نحن هنا لمساعدتك',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          SectionCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'كيف يمكننا مساعدتك؟',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                ),
+                const SizedBox(height: 14),
+                OutlinedButton.icon(
+                  onPressed: () =>
+                      _showMessage(context, 'سيتم فتح دليل المستخدم لاحقًا'),
+                  icon: const Icon(Icons.menu_book_outlined),
+                  label: const Text('دليل المستخدم'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(46),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () => _showMessage(
+                    context,
+                    'سيتم فتح الفيديوهات التعليمية لاحقًا',
+                  ),
+                  icon: const Icon(Icons.ondemand_video_outlined),
+                  label: const Text('فيديوهات تعليمية'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(46),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          SectionCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'الاتصال بالدعم',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                ),
+                const SizedBox(height: 14),
+                _SupportContactTile(
+                  icon: Icons.chat_bubble_outline,
+                  title: 'الدردشة المباشرة',
+                  subtitle: 'تواصل معنا مباشرة',
+                  onTap: () => _showMessage(
+                    context,
+                    'سيتم ربط الدردشة المباشرة مع فريق الدعم لاحقًا',
+                  ),
+                ),
+                _SupportContactTile(
+                  icon: Icons.email_outlined,
+                  title: 'دعم البريد الإلكتروني',
+                  subtitle: 'support@mahamik.app',
+                  onTap: () => _showMessage(
+                    context,
+                    'البريد الحالي: support@mahamik.app',
+                  ),
+                ),
+                _SupportContactTile(
+                  icon: Icons.phone_outlined,
+                  title: 'الدعم الهاتفي',
+                  subtitle: '+966 11 123 4567',
+                  onTap: () => _showMessage(
+                    context,
+                    'رقم الدعم: +966 11 123 4567',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          SectionCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: const [
+                Text(
+                  'المحاماة للاستشارات القانونية',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'نظام دعم ومساعدة مخصص للمستخدم داخل تطبيق محاميك.',
+                  style: TextStyle(
+                    color: AppColors.foreground,
+                    height: 1.5,
+                  ),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  'الإصدار 1.0.0  •  2026',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.foreground,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SupportContactTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _SupportContactTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(
+        backgroundColor: AppColors.primary.withValues(alpha: 0.10),
+        child: Icon(icon, color: AppColors.primary),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_left_rounded),
+      onTap: onTap,
+    );
+  }
+}
+
+class _FaqTile extends StatelessWidget {
+  final String title;
+  final String answer;
+
+  const _FaqTile({
+    required this.title,
+    required this.answer,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: const EdgeInsets.only(bottom: 12),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 14,
+        ),
+      ),
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: Text(
+            answer,
+            style: TextStyle(
+              color: AppColors.foreground.withValues(alpha: 0.75),
+              height: 1.6,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+enum _NotificationType {
+  message,
+  request,
+  appointment,
+  system,
+}
+
+class _UserNotificationItem {
+  final String title;
+  final String body;
+  final String time;
+  final IconData icon;
+  final _NotificationType type;
+  final bool isUnread;
+
+  const _UserNotificationItem({
+    required this.title,
+    required this.body,
+    required this.time,
+    required this.icon,
+    required this.type,
+    required this.isUnread,
+  });
+
+  _UserNotificationItem copyWith({
+    String? title,
+    String? body,
+    String? time,
+    IconData? icon,
+    _NotificationType? type,
+    bool? isUnread,
+  }) {
+    return _UserNotificationItem(
+      title: title ?? this.title,
+      body: body ?? this.body,
+      time: time ?? this.time,
+      icon: icon ?? this.icon,
+      type: type ?? this.type,
+      isUnread: isUnread ?? this.isUnread,
+    );
+  }
+}
