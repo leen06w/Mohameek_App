@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "374946187150",
+    "project_id": "muhamah-app",
+    "storage_bucket": "muhamah-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:374946187150:android:60dba812e5a4793ec606df",
+        "android_client_info": {
+          "package_name": "com.example.mahamik_flutter_source"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB_UR5B8LT1I7RKTXlC3d649v7e2q9Ufmg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:374946187150:android:1aa31a9bf325de84c606df",
+        "android_client_info": {
+          "package_name": "com.example.muhamik_flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB_UR5B8LT1I7RKTXlC3d649v7e2q9Ufmg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

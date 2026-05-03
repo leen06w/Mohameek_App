@@ -1,0 +1,31 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "muhamah-app",
+          "appId": "1:374946187150:android:60dba812e5a4793ec606df",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "muhamah-app",
+          "configurations": {
+            "android": "1:374946187150:android:60dba812e5a4793ec606df",
+            "ios": "1:374946187150:ios:5e942c72ed6f0efdc606df",
+            "macos": "1:374946187150:ios:5e942c72ed6f0efdc606df",
+            "web": "1:374946187150:web:e399256c3eddd7e1c606df",
+            "windows": "1:374946187150:web:06b8a0cc1c602a31c606df"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "database": "(default)",
+    "location": "me-central1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}
