@@ -30,7 +30,8 @@ class GeminiService {
 
   Future<String> sendLegalPrompt(
       {required String prompt, required String userType}) async {
-    final String apiKey = "AIzaSyB07CxGReOaHi4qczUkwkHX-i91W5iLfMg";
+    final String apiKey =
+        "**********************************"; //المفتاح هنا ينحط
     final String cleanKey = apiKey.trim();
 
     // الحل النهائي للرابط لضمان عدم ظهور 404
