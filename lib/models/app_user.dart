@@ -1,3 +1,6 @@
+/// كلاس البيانات الأساسي الذي يمثل "المستخدم" داخل نظام محاميك.
+/// يتميز هذا الموديل بالمرونة؛ حيث يجمع الحقول المشتركة بين الطلاب والمحامين،
+/// ويدير عمليات التحويل من وإلى صيغة Map للتعامل مع قاعدة بيانات Cloud Firestore.
 class AppUser {
   final String id;
   final String name;
@@ -13,7 +16,7 @@ class AppUser {
   final String barAssociation;
   final String practiceAreas;
   final String zipCode;
-  final String bio; // أضفنا هذا الحقل
+  final String bio;
 
   const AppUser({
     this.id = '',
@@ -30,9 +33,11 @@ class AppUser {
     this.barAssociation = '',
     this.practiceAreas = '',
     this.zipCode = '',
-    this.bio = '', // قيمة افتراضية فارغة
+    this.bio = '',
   });
 
+  /// دالة (Factory) تقوم بتحويل البيانات المسترجعة من Firestore إلى كائن برمي [AppUser].
+  /// تضمن الدالة سلامة البيانات عبر استخدام [toString] لمنع انهيار التطبيق عند وجود قيم فارغة.
   factory AppUser.fromMap(Map<String, dynamic>? map, String documentId) {
     final data = map ?? {};
     return AppUser(
@@ -54,6 +59,7 @@ class AppUser {
     );
   }
 
+  /// تقوم بتحويل كائن [AppUser] إلى خريطة بيانات (Map) لرفعها وتخزينها في مستندات Firestore.
   Map<String, dynamic> toMap() {
     return {
       'name': name,
@@ -73,7 +79,8 @@ class AppUser {
     };
   }
 
-  // دالة مفيدة جداً لتحديث بيانات المستخدم دون إعادة إنشاء الكائن كاملاً
+  /// دالة برمجية احترافية تسمح بتحديث حقول معينة في بيانات المستخدم مع الحفاظ على بقية البيانات
+  /// دون الحاجة لإعادة إنشاء الكائن من الصفر، مما يحسن من كفاءة الذاكرة.
   AppUser copyWith({
     String? name,
     String? email,

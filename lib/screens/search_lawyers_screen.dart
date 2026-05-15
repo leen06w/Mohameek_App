@@ -3,10 +3,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/theme/app_colors.dart';
 import '../core/widgets/app_shell.dart';
 import '../core/widgets/ui.dart';
-import '../models/lawyer.dart';
-import '../services/location_service.dart';
+import '../models/lawyer.dart'; // موديل بيانات المحامي المعتمد بالنظام
+import '../services/location_service.dart'; // خدمة جلب الإحداثيات الحية لحساب وفرز المسافات
 import '../app.dart';
 
+/// كلاس من نوع StatefulWidget يمثل شاشة "البحث عن محامي" الموجهة للطلاب.
+/// يتولى الكلاس جلب الخبراء القانونيين من الـ Firestore، وإدارة فلاتر التخصصات والمدن، والفرز الجغرافي حسب الأقرب لموقع الطالب.
 class SearchLawyersScreen extends StatefulWidget {
   const SearchLawyersScreen({super.key});
 
@@ -14,29 +16,37 @@ class SearchLawyersScreen extends StatefulWidget {
   State<SearchLawyersScreen> createState() => _SearchLawyersScreenState();
 }
 
+/// كلاس الحالة الديناميكي المسؤول عن معالجة نصوص الاستعلام، وعمليات المقارنة الجغرافية، ورسم كروت المحامين وقوائم التصفية.
 class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
-  final _controller = TextEditingController();
-  final _locationService = LocationService();
+  final _controller =
+      TextEditingController(); // متحكم بحقل البحث النصي لمراقبة المدخلات فوراً
+  final _locationService = LocationService(); // تهيئة خدمة المواقع الجغرافية
 
-  List<Lawyer> _lawyers = [];
-  bool _loading = true;
-  bool _locating = false;
-  String selectedSpecialty = 'الكل';
-  String selectedCity = 'الكل';
-  bool showFilters = false;
-  bool sortByNearest = false;
-  UserLocationData? _currentLocation;
+  List<Lawyer> _lawyers =
+      []; // القائمة الكلية للمحامين المسترجعة من قاعدة البيانات
+  bool _loading =
+      true; // مؤشر تتبع حالة جلب البيانات لإظهار حلقة التحميل العلوية
+  bool _locating = false; // تتبع حالة استدعاء الـ GPS للجوال حالياً
+  String selectedSpecialty =
+      'الكل'; // التخصص المختار حالياً للتصفية (الافتراضي: الكل)
+  String selectedCity = 'الكل'; // المدينة المختارة حالياً للتصفية
+  bool showFilters = false; // التحكم بظهور وإخفاء شريط الفلاتر المنسدل
+  bool sortByNearest = false; // متغير منطقي لتفعيل الفرز الجغرافي حسب الأقرب
+  UserLocationData?
+      _currentLocation; // لحفظ بيانات خطوط الطول والعرض الخاصة بالطالب الحالي
 
+  /// مستخرج ديناميكي (Getter) يقرأ تخصصات المحامين المتاحة، ويصفي التكرارات منها لإنشاء قائمة فلاتر فريدة وممررة
   List<String> get specialties {
     final dynamicList = _lawyers
         .map((e) => e.specialty)
         .where((e) => e.isNotEmpty)
-        .toSet()
+        .toSet() // تحويل لمجموعة (Set) لحذف التكرارات تلقائياً
         .toList();
-    dynamicList.sort();
+    dynamicList.sort(); // ترتيب التخصصات أبجدياً
     return ['الكل', ...dynamicList];
   }
 
+  /// مستخرج ديناميكي (Getter) لتجميع قائمة المدن الفريدة والمسجلة للمحامين بداخل السيرفر آلياً
   List<String> get cities {
     final dynamicList =
         _lawyers.map((e) => e.city).where((e) => e.isNotEmpty).toSet().toList();
@@ -44,26 +54,29 @@ class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
     return ['الكل', ...dynamicList];
   }
 
+  /// المحرك الأساسي للشاشة (Filter Core Logic): مستخرج يقوم بمعالجة مصفوفة المحامين وتطبيق شروط الفرز المركبة لحظياً
   List<Lawyer> get filtered {
     final result = _lawyers.where((lawyer) {
       final query = _controller.text.trim().toLowerCase();
 
-      // البحث بالاسم أو التخصص
+      // 1. شرط البحث النصي: مطابقة استعلام الطالب مع اسم المحامي أو تخصصه المهني
       final matchesSearch = query.isEmpty ||
           lawyer.name.toLowerCase().contains(query) ||
           lawyer.specialty.toLowerCase().contains(query);
 
-      // التصفية حسب التخصص (مع مراعاة القيم الافتراضية)
+      // 2. شرط التصفية حسب التخصص
       final matchesSpecialty =
           selectedSpecialty == 'الكل' || lawyer.specialty == selectedSpecialty;
 
-      // التصفية حسب المدينة
+      // 3. شرط التصفية حسب المدينة المسجلة
       final matchesCity = selectedCity == 'الكل' || lawyer.city == selectedCity;
 
-      return matchesSearch && matchesSpecialty && matchesCity;
+      return matchesSearch &&
+          matchesSpecialty &&
+          matchesCity; // دمج الشروط الثلاثة معاً
     }).toList();
 
-    // الترتيب حسب الأقرب لموقعي
+    // 4. خوارزمية الترتيب الجغرافي: إذا تم تفعيل فرز الأقرب وتوفرت إحداثيات الطالب، يتم فرز المصفوفة تصاعدياً
     if (sortByNearest && _currentLocation != null) {
       result.sort((a, b) {
         final da = _locationService.distanceKm(
@@ -78,7 +91,7 @@ class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
           toLat: b.lat,
           toLng: b.lng,
         );
-        return da.compareTo(db);
+        return da.compareTo(db); // مقارنة وفصل المسافات الأقرب فالأبعد
       });
     }
 
@@ -100,10 +113,11 @@ class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller.dispose(); // إغلاق الكنترولر لحماية الذاكرة ومنع تسريب البيانات
     super.dispose();
   }
 
+  /// دالة جلب البيانات غير المتزامنة؛ تتصل بمجموعة Users وتسترجع فقط المستخدمين بصفة lawyer
   Future<void> _loadLawyers() async {
     try {
       // جلب المستخدمين بصفة محامي فقط
@@ -115,6 +129,7 @@ class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
       if (!mounted) return;
 
       setState(() {
+        // تحويل المستندات المسترجعة من الفايربيس إلى كائنات ممررة داخل موديل الـ Lawyer
         _lawyers = snapshot.docs.map((doc) {
           final data = doc.data();
           // ننشئ الكائن يدوياً لتمرير الحقول المطلوبة (Required) وحمايته من الأخطاء
@@ -140,7 +155,7 @@ class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
           );
         }).toList();
 
-        _loading = false;
+        _loading = false; // إيقاف حلقة التحميل بعد اكتمال البيانات
       });
     } catch (e) {
       if (mounted) {
@@ -150,13 +165,14 @@ class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
     }
   }
 
+  /// دالة استدعاء مستشعر الـ GPS لتحديد موقع الطالب وتفعيل الفرز الكيلومتري للأقرب
   Future<void> _detectLocation() async {
     setState(() => _locating = true);
     final location = await _locationService.getCurrentLocation();
     if (!mounted) return;
     setState(() {
       _currentLocation = location;
-      sortByNearest = true;
+      sortByNearest = true; // تشغيل مفتاح الفرز الجغرافي
       _locating = false;
     });
 
@@ -168,6 +184,7 @@ class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
     );
   }
 
+  /// تصفير كافة المدخلات وإعادة تعيين حالات التصفية للوضع الافتراضي النظيف
   void _resetFilters() {
     setState(() {
       _controller.clear();
@@ -179,6 +196,7 @@ class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
     _showMessage('تمت إعادة ضبط الفلاتر');
   }
 
+  /// دالة مساعدة لحساب المسافة الفاصلة بين موقع الطالب والمحامي الحالي المختار
   double? _distanceFor(Lawyer lawyer) {
     final loc = _currentLocation;
     if (loc == null) return null;
@@ -218,6 +236,7 @@ class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
     );
   }
 
+  /// فتح لوحة الخيارات السفلية المنبثقة (BottomSheet) لعرض ملخص سريع لبيانات المحامي قبل الحجز
   void _showLawyerActions(Lawyer lawyer) {
     showModalBottomSheet<void>(
       context: context,
@@ -285,6 +304,7 @@ class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
     );
   }
 
+  /// مكون مربع الإحصائيات الصغير (الخبرة، القضايا، المدينة) المرسوم بداخل الكرت الأساسي
   Widget _miniStat(String label, String value) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
@@ -308,6 +328,7 @@ class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
     );
   }
 
+  /// بطاقات التحكم العلوية (Chips) المسؤولة عن تبديل حالات التصفية وتفعيل الـ GPS
   Widget _actionChip({
     required IconData icon,
     required String title,
@@ -348,7 +369,7 @@ class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final list = filtered; // القائمة المفلترة الجاهزة عندك
+    final list = filtered; // القائمة المفلترة الجاهزة للعرض
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -362,9 +383,12 @@ class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child:
+                  CircularProgressIndicator()) // عرض حلقة التحميل أثناء جلب البيانات من الفايربيس
           : list.isEmpty
               ? Center(
+                  // واجهة خلو النتائج في حال لم يتطابق البحث مع أي محامي
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -379,7 +403,8 @@ class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
                 )
               : ListView.builder(
                   padding: const EdgeInsets.all(16.0),
-                  itemCount: list.length + 1,
+                  itemCount: list.length +
+                      1, // إضافة 1 لبناء شريط البحث كعنصر علوي ثابت داخل السكرول
                   itemBuilder: (context, index) {
                     if (index == 0) {
                       // 1. قسم البحث والفلاتر في أعلى القائمة
@@ -400,7 +425,6 @@ class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
                             ),
                           ),
                           const SizedBox(height: 14),
-                          // استخدام دالة _actionChip اللي في صورتك
                           SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: Row(
@@ -436,13 +460,12 @@ class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
                       );
                     }
 
-                    // 2. عرض كروت المحامين باستخدام الدوال المساعدة عندك
+                    // 2. عرض كروت المحامين باستخدام الدوال المساعدة
                     final lawyer = list[index - 1];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: InkWell(
-                        onTap: () =>
-                            _showLawyerActions(lawyer), // دالة الأكشن من صورتك
+                        onTap: () => _showLawyerActions(lawyer),
                         child: Card(
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(15)),
@@ -532,6 +555,8 @@ class _SearchLawyersScreenState extends State<SearchLawyersScreen> {
   }
 }
 
+/// ويدجت مساعدة من نوع StatelessWidget مخصصة لتنسيق أسطر كرت التفاصيل السفلي [BottomSheet].
+/// تعرض التسمية والقيمة المقابلة لها بمحاذاة منسقة تدعم جمالية واجهة الاستخدام بالتطبيق.
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;

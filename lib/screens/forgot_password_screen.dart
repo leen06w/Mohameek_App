@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // استيراد مكتبة الفايربيس لإدارة الحسابات والأمان
 import '../core/theme/app_colors.dart';
 import '../core/widgets/app_shell.dart';
 import '../core/widgets/ui.dart';
 
+// الكلاس الثابت المسؤول عن تعريف شاشة استعادة كلمة المرور
+/// كلاس من نوع StatefulWidget يمثل شاشة "استعادة وتعيين كلمة المرور المفقودة".
+/// يوفر حقولاً محمية بأنظمة التحقق الرقمي (Validation)، ويتصل بخدمات الفايربيس للتحقق من وجود البريد،
+/// ويقوم بتوليد روابط أمان مشفرة وإرسالها لبريد المستخدم تلقائياً دون أي تدخل يدوي من خادم التطبيق.
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -11,49 +15,59 @@ class ForgotPasswordScreen extends StatefulWidget {
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
+// كلاس الحالة الديناميكي الذي يحتوي على منطق الواجهة والاتصال بالفايربيس
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+  // مفتاح عالمي لإدارة حالة الـ Form والتحقق من صحة المدخلات مجتمعة
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  // متحكم بحقل النص الخاص بالبريد الإلكتروني، ويحتوي على بريد افتراضي للتسهيل أثناء التجربة
   final TextEditingController _emailController =
       TextEditingController(text: 'rr@dd.com');
 
-  bool _submitting = false;
-  bool _linkSent = false;
+  bool _submitting =
+      false; // متغير لتتبع حالة الإرسال الحالية لإظهار مؤشر التحميل
+  bool _linkSent =
+      false; // متغير يتحول إلى true عند نجاح إرسال الرابط لإظهار رسالة النجاح الخضراء
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _emailController
+        .dispose(); // تفريغ الذاكرة من المتحكم فور الخروج من الشاشة لمنع تسريب البيانات
     super.dispose();
   }
 
+// دالة الرجوع للشاشة السابقة بأمان بعد التأكد من إمكانية العودة
   void _handleBack() {
     if (Navigator.canPop(context)) {
       Navigator.pop(context);
     }
   }
 
+// الدالة الأساسية لإرسال طلب إعادة تعيين كلمة المرور
   Future<void> _submit() async {
-    FocusScope.of(context).unfocus();
+    FocusScope.of(context)
+        .unfocus(); // إغلاق لوحة المفاتيح تلقائياً عند الضغط على الزر لتحسين تجربة المستخدم
 
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
-      _submitting = true;
-      _linkSent = false;
+      _submitting = true; // تشغيل حالة التحميل وتغيير نص الزر
+      _linkSent = false; // إخفاء رسالة النجاح السابقة إن وجدت
     });
 
     try {
-      // إرسال طلب إعادة تعيين كلمة المرور عبر الفايربيس
+      // استدعاء دالة الفايربيس الرسمية لإرسال بريد إعادة التعيين مع تنظيف الفراغات المحيطة بالبريد
       await FirebaseAuth.instance.sendPasswordResetEmail(
         email: _emailController.text.trim(),
       );
 
-      if (!mounted) return;
+      if (!mounted)
+        return; // التأكد من أن الشاشة لا تزال مفتوحة قبل تحديث الواجهة
 
       setState(() {
-        _submitting = false;
-        _linkSent = true;
+        _submitting = false; // إيقاف مؤشر التحميل
+        _linkSent = true; // إظهار بطاقة النجاح الخضراء للمستخدم
       });
-
+// إظهار رسالة سفلية خفيفة تؤكد نجاح العملية
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
@@ -181,10 +195,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
+                // زر الإرسال التفاعلي الذي يتغير نصه وحالته أثناء الاتصال بالسيرفر
                 PrimaryButton(
                   text: _submitting ? 'جارٍ الإرسال...' : 'إرسال الرابط',
-                  onPressed: _submitting ? null : _submit,
+                  onPressed: _submitting
+                      ? null
+                      : _submit, // تعطيل الزر أثناء التحميل لمنع تكرار الطلبات
                 ),
+                // عرض بطاقة النجاح الخضراء بشكل شرطي وفقط عند اكتمال الإرسال بنجاح
                 if (_linkSent) ...[
                   const SizedBox(height: 14),
                   Container(

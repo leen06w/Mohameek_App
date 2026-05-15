@@ -1,3 +1,5 @@
+/// يمثل مستند "طلب الاستشارة" الذي يربط الطالب بالمحامي.
+/// يدير هذا الموديل كافة تفاصيل الطلب وحالته الحالية (قيد الانتظار، مقبول، مرفوض، تفاوض).
 class RequestItem {
   final String id;
   final String lawyerName;
@@ -10,9 +12,9 @@ class RequestItem {
   final String status;
   final String submittedAt;
   final String? price;
-  final String? negotiationNote;
-  final String? rejectionReason;
-  final String? decisionAt;
+  final String? negotiationNote; // ملاحظات المحامي عند الحاجة للتفاوض
+  final String? rejectionReason; // سبب الرفض في حال عدم قبول الطلب
+  final String? decisionAt; // وقت صدور قرار المحامي
 
   const RequestItem({
     required this.id,
@@ -31,6 +33,7 @@ class RequestItem {
     this.decisionAt,
   });
 
+  /// تستخدم بشكل أساسي في لوحة تحكم المحامي لتحديث حالة الطلب (Status) فقط دون المساس ببيانات الطالب الأساسية.
   RequestItem copyWith({
     String? id,
     String? lawyerName,
@@ -65,11 +68,13 @@ class RequestItem {
     );
   }
 
+  /// دالة تحويل البيانات من صيغة JSON إلى كائن برمي.
+  /// تدعم دمج الأسماء المختلفة للحقول (مثل lawyer_name و lawyerName) لضمان التوافق مع إصدارات قاعدة البيانات المختلفة.
   factory RequestItem.fromJson(Map<String, dynamic> json) {
     return RequestItem(
       id: (json['id'] ?? '').toString(),
-      lawyerName: (json['lawyer_name'] ?? json['lawyerName'] ?? 'محامٍ')
-          .toString(),
+      lawyerName:
+          (json['lawyer_name'] ?? json['lawyerName'] ?? 'محامٍ').toString(),
       lawyerSpecialty:
           (json['lawyer_specialty'] ?? json['lawyerSpecialty'] ?? '')
               .toString(),
@@ -83,7 +88,8 @@ class RequestItem {
       caseType: (json['case_type'] ?? json['caseType'] ?? '').toString(),
       description: (json['description'] ?? '').toString(),
       status: (json['status'] ?? 'pending').toString(),
-      submittedAt: (json['submitted_at'] ?? json['submittedAt'] ?? '').toString(),
+      submittedAt:
+          (json['submitted_at'] ?? json['submittedAt'] ?? '').toString(),
       price: json['price']?.toString(),
       negotiationNote:
           (json['negotiation_note'] ?? json['negotiationNote'])?.toString(),
@@ -93,6 +99,7 @@ class RequestItem {
     );
   }
 
+  /// تحويل الطلب إلى صيغة JSON لحفظه في الفايربيس أو الذاكرة المحلية [SharedPreferences].
   Map<String, dynamic> toJson() => {
         'id': id,
         'lawyer_name': lawyerName,

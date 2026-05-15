@@ -7,6 +7,8 @@ import '../core/widgets/ui.dart';
 import '../models/app_user.dart';
 import '../services/auth_service.dart';
 
+/// كلاس من نوع StatefulWidget يمثل شاشة "الإعدادات" الشاملة للمستخدمين.
+/// يتولى الكلاس إدارة وتحديث البيانات الشخصية، تغيير كلمة المرور، وتخصيص تفضيلات التطبيق واللغة.
 class UserSettingsScreen extends StatefulWidget {
   const UserSettingsScreen({super.key});
 
@@ -14,10 +16,12 @@ class UserSettingsScreen extends StatefulWidget {
   State<UserSettingsScreen> createState() => _UserSettingsScreenState();
 }
 
+/// كلاس الحالة الديناميكي المسؤول عن إدارة النماذج (Forms)، ومزامنة بيانات الملف الشخصي مع الـ Firestore، ومعالجة تسجيل الخروج الآمن.
 class _UserSettingsScreenState extends State<UserSettingsScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final AuthService _authService = AuthService();
 
+// --- أدوات التحكم البرمجي بالحقول النصية ( Controllers) لجميع أقسام الإعدادات ---
   late TextEditingController _fullNameController;
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
@@ -29,15 +33,18 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
   late TextEditingController _newPasswordController;
   late TextEditingController _confirmPasswordController;
 
+// متغيرات تتبع حالات المفاتيح (Switches) والتفضيلات
   bool notifications = true;
   bool smsAlerts = true;
   bool emailAlerts = true;
 
+// مؤشرات تتبع حالة العمليات غير المتزامنة (Loading States)
   bool _isLoading = true;
   bool _isSavingProfile = false;
   bool _isSavingPassword = false;
   bool _isLoggingOut = false;
 
+// متغيرات التحكم بخصوصية كلمات المرور (إظهار/إخفاء)
   bool _obscureCurrentPassword = true;
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
@@ -48,6 +55,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
   @override
   void initState() {
     super.initState();
+    // تهيئة جميع المتحكمات فور بدء الشاشة
     _fullNameController = TextEditingController();
     _emailController = TextEditingController();
     _phoneController = TextEditingController();
@@ -59,11 +67,12 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
     _newPasswordController = TextEditingController();
     _confirmPasswordController = TextEditingController();
 
-    _loadCurrentUser();
+    _loadCurrentUser(); // جلب بيانات المستخدم الحقيقية من السيرفر فور الفتح
   }
 
   @override
   void dispose() {
+    // إغلاق وتفريغ كافة المتحكمات من الذاكرة العشوائية لمنع الـ Memory Leaks
     _fullNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
@@ -77,6 +86,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
     super.dispose();
   }
 
+  /// دالة جلب بيانات المستخدم المسجل حالياً وحقنها في الحقول النصية
   Future<void> _loadCurrentUser() async {
     final user = await _authService.getCurrentUser();
     if (!mounted) return;
@@ -96,6 +106,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
     }
   }
 
+  /// دالة حفظ وتحديث بيانات الملف الشخصي في قاعدة بيانات Firestore
   Future<void> _saveProfile() async {
     FocusScope.of(context).unfocus();
 
@@ -108,6 +119,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
 
     setState(() => _isSavingProfile = true);
 
+// بناء كائن مستخدم جديد بالبيانات المعدلة
     final updatedUser = AppUser(
       id: _currentUser!.id,
       name: _fullNameController.text.trim(),
@@ -136,6 +148,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
       );
   }
 
+  /// دالة محاكاة تحديث كلمة المرور مع تطبيق شروط التحقق الصارمة
   Future<void> _savePassword() async {
     FocusScope.of(context).unfocus();
 
@@ -192,6 +205,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
       );
   }
 
+  /// دالة تسجيل الخروج وتطهير جلسة المستخدم والتحويل لشاشة الدخول
   Future<void> _logout() async {
     setState(() => _isLoggingOut = true);
 
@@ -227,6 +241,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
       );
   }
 
+  /// توحيد مظهر حقول الإدخال (TextFormField Decoration) بكامل الشاشة
   InputDecoration _inputDecoration({
     required String label,
     required IconData icon,
@@ -251,6 +266,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
     );
   }
 
+  /// بناء ترويسة أقسام الإعدادات (الأيقونة، العنوان، والوصف)
   Widget _buildSectionTitle(String title, String subtitle, IconData icon) {
     return Row(
       children: [
@@ -287,6 +303,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
     );
   }
 
+  /// القسم الأول: إدارة وتعديل البيانات الشخصية
   Widget _buildProfileSection() {
     return SectionCard(
       child: Column(
@@ -365,7 +382,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
                   ),
                 ),
 
-                // --- الجزء المضاف للمحامين فقط ---
+                // --- واجهة ذكية متكيفة: تظهر للمحامين فقط ---
                 if (_currentUser?.role == 'lawyer') ...[
                   const SizedBox(height: 14),
                   TextFormField(
@@ -453,6 +470,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
     );
   }
 
+  /// القسم الثاني: أمان الحساب وتغيير كلمة المرور
   Widget _buildPasswordSection() {
     return SectionCard(
       child: Column(
@@ -557,6 +575,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
     );
   }
 
+  /// القسم الثالث: إدارة تفضيلات الإشعارات والتنبيهات
   Widget _buildNotificationsSection() {
     return SectionCard(
       child: Column(
@@ -596,6 +615,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
     );
   }
 
+  /// القسم الرابع: تفضيلات اللغة والواجهة
   Widget _buildPreferencesSection() {
     return SectionCard(
       child: Column(
@@ -633,6 +653,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
     );
   }
 
+  /// القسم الخامس والأخير: إجراءات الحساب وتسجيل الخروج
   Widget _buildAccountActionsSection() {
     return SectionCard(
       child: Column(

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../app.dart';
 import '../core/theme/app_colors.dart';
 
+/// كلاس من نوع StatefulWidget يمثل الواجهة التعريفية الترحيبية الأولى التي تظهر للمستخدم عند فتح التطبيق لأول مرة.
+/// يتولى الكلاس عرض مزايا المنصة الرئيسية بأسلوب انسيابي متحرك، وتهيئة المستخدم للانتقال لبوابة تسجيل الدخول.
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -10,10 +12,14 @@ class OnboardingScreen extends StatefulWidget {
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
+/// كلاس الحالة الديناميكي المسؤول عن إدارة حركة الصفحات [PageController]، ومراقبة الـ Index الحالي لتحديث النقاط السفلية ونصوص الأزرار.
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  final PageController _pageController = PageController();
-  int _currentIndex = 0;
+  final PageController _pageController =
+      PageController(); // متحكم برمي للتنقل والتحكم بصفحات العرض التعريفية
+  int _currentIndex =
+      0; // متغير محلي لتتبع رقم الصفحة النشطة حالياً (يبدأ من 0 إلى 2)
 
+// --- مصفوفة كائنات البيانات الثابتة للـ Onboarding متبعة مبدأ فصل البيانات عن الواجهات ---
   final List<_OnboardingItem> _items = const [
     _OnboardingItem(
       icon: Icons.balance_rounded,
@@ -46,27 +52,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _pageController
+        .dispose(); // تفريغ الذاكرة من السيرفر والمتحكم فور الانتقال لمنع تسريب الذاكرة Memory Leaks
     super.dispose();
   }
 
+  /// الدالة المسؤولة عن نقل المستخدم للصفحة التالية بـ أنيميشن ناعم، أو نقله لصفحة الدخول إذا كان في المحطة الأخيرة
   void _handleNext() {
     if (_currentIndex < _items.length - 1) {
+      // نقل الكاميرا والصفحة للتالي بمنحنى حركة مريح للعين
       _pageController.nextPage(
         duration: const Duration(milliseconds: 280),
         curve: Curves.easeInOut,
       );
     } else {
+      // إتلاف الشاشة الترحيبية بالكامل والانتقال الجذري لبوابة الدخول دون إمكانية العودة للخلف (pushReplacementNamed)
       Navigator.pushReplacementNamed(context, AppRoutes.login);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final item = _items[_currentIndex];
+    final item = _items[
+        _currentIndex]; // جلب كائن البيانات الفعلي بناءً على الصفحة الحالية المعروضة
 
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: TextDirection
+          .rtl, // حقن اللغة والتوجيه العربي من اليمين لليسار لكافة عناصر الشاشة
       child: Scaffold(
         backgroundColor: AppColors.background,
         body: SafeArea(
@@ -75,12 +87,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             child: Column(
               children: [
                 Expanded(
+                  // بناء منشئ الصفحات الذكي والموفر للموارد (PageView.builder)
                   child: PageView.builder(
                     controller: _pageController,
                     itemCount: _items.length,
                     onPageChanged: (index) {
                       setState(() {
-                        _currentIndex = index;
+                        _currentIndex =
+                            index; // تحديث المؤشر فور قيام العميل بسحب الشاشة بإصبعه
                       });
                     },
                     itemBuilder: (context, index) {
@@ -121,7 +135,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           Expanded(
                             child: Center(
                               child: _IllustrationCard(
-                                type: page.illustrationType,
+                                type: page
+                                    .illustrationType, // رسم الصورة والكرت المناسب ديناميكياً
                               ),
                             ),
                           ),
@@ -148,11 +163,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     },
                   ),
                 ),
+                // ويدجت رسم وتحديث النقاط الدائرية السفلية الذكية ومزامنتها محلياً
                 _PageIndicators(
                   currentIndex: _currentIndex,
                   count: _items.length,
                 ),
                 const SizedBox(height: 24),
+                // زر التقدم الأساسي العريض أسفل الواجهة
                 SizedBox(
                   width: double.infinity,
                   height: 54,
@@ -167,7 +184,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                     ),
                     child: Text(
-                      item.buttonText,
+                      item.buttonText, // النص يتحدث تلقائياً (التالي -> ابدأ الآن)
                       style: const TextStyle(
                         fontFamily: 'Cairo',
                         fontSize: 18,
@@ -185,6 +202,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 }
 
+// --- الويدجتس المساعدة وبطاقات الرسوم البصرية لملف التهيئة ---
 class _TopIconBadge extends StatelessWidget {
   final IconData icon;
 
@@ -232,10 +250,13 @@ class _PageIndicators extends StatelessWidget {
         count,
         (index) {
           final active = index == currentIndex;
+          // استخدام حاوية متحركة لتغيير عرض النقطة بشكل مطاطي ناعم وجميل ومحفز للـ UI
           return AnimatedContainer(
             duration: const Duration(milliseconds: 220),
             margin: const EdgeInsets.symmetric(horizontal: 4),
-            width: active ? 22 : 10,
+            width: active
+                ? 22
+                : 10, // النقطة النشطة تتمدد أفقياً لتأكيد الاختيار البصري للعميل
             height: 10,
             decoration: BoxDecoration(
               color: active
@@ -258,6 +279,7 @@ class _IllustrationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     switch (type) {
+      // توزيع كلاس الرسم المطلوب بناءً على نوع الـ Enum الممرر
       case _IllustrationType.scale:
         return const _ScaleIllustration();
       case _IllustrationType.search:
@@ -287,7 +309,7 @@ class _ScaleIllustration extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Image.asset(
-            'assets/images/image_screen1.png',
+            'assets/images/image_screen1.png', // استدعاء ميزان العدالة من ملفات النظام
             fit: BoxFit.contain,
           ),
         ),
@@ -306,7 +328,7 @@ class _SearchIllustration extends StatelessWidget {
         width: 300,
         height: 280,
         child: Image.asset(
-          'assets/images/image_screen2.png',
+          'assets/images/image_screen2.png', // استدعاء رسمة البحث عن الخبراء
           fit: BoxFit.contain,
         ),
       ),
@@ -324,7 +346,7 @@ class _SecurityIllustration extends StatelessWidget {
         width: 300,
         height: 280,
         child: Image.asset(
-          'assets/images/image_screen3.png',
+          'assets/images/image_screen3.png', // استدعاء رسمة الحماية والتأمين المشفر
           fit: BoxFit.contain,
         ),
       ),
@@ -350,6 +372,7 @@ class _OnboardingItem {
   });
 }
 
+// تصنيف ترميزي مخصص (Enum) لتحديد الرسوم التوضيحية بأعلى درجات كفاءة واختصار الكود
 enum _IllustrationType {
   scale,
   search,

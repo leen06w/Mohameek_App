@@ -2,9 +2,12 @@ import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 
+/// خدمة التكامل مع ذكاء Google الاصطناعي (Gemini API).
+/// تقوم هذه الخدمة بتحليل استفسارات المستخدمين وربطها بالأنظمة القانونية السعودية المناسبة.
 class GeminiService {
   final http.Client _client = http.Client();
 
+  /// دالة داخلية تقوم بفلترة الأنظمة القانونية (Text Files) بناءً على الكلمات المفتاحية في سؤال المستخدم.
   Future<String> _getRelevantLaw(String prompt) async {
     String fileName = '';
     if (prompt.contains('موظف') ||
@@ -22,16 +25,18 @@ class GeminiService {
     }
     if (fileName.isEmpty) return "";
     try {
+      // تحميل محتوى ملف النظام القانوني من مجلد الـ assets
       return await rootBundle.loadString('assets/legal_docs/$fileName');
     } catch (e) {
       return "";
     }
   }
 
+  /// إرسال الاستفسار إلى Gemini API مع توجيهات (System Prompt) لضمان إجابة قانونية دقيقة.
   Future<String> sendLegalPrompt(
       {required String prompt, required String userType}) async {
     final String apiKey =
-        "**********************************"; //المفتاح هنا ينحط
+        "***********************************"; //مفتاح جيميناي مخفي للسريه
     final String cleanKey = apiKey.trim();
 
     // الحل النهائي للرابط لضمان عدم ظهور 404
@@ -43,8 +48,7 @@ class GeminiService {
         ? "أنت محامٍ سعودي خبير. بناءً على النظام التالي:\n$lawContext\nأجب بدقة."
         : "أنت محامٍ سعودي خبير. أجب بناءً على الأنظمة السعودية المعمول بها.";
 
-    // تبسيط الهيكل لضمان القبول السريع وتقليل الضغط على المعالج
-    // داخل دالة إرسال الطلب في ملف gemini_service.dart
+    // صياغة الطلب البرمجي (Payload) مع تعليمات صارمة للنموذج ليكون "مستشاراً قانونياً"
     final Map<String, dynamic> body = {
       "contents": [
         {

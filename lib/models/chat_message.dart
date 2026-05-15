@@ -1,12 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// يمثل هيكل "الرسالة المفردة" داخل غرف المحادثة المباشرة.
+/// يدير هوية المرسل [senderId] والوقت [timestamp] وما إذا كانت الرسالة تحتوي على مرفقات.
 class ChatMessage {
   final String id;
   final String text;
   final String senderId;
-  final bool isUser;
+  final bool isUser; // لتحديد جهة عرض الرسالة (يمين للمستخدم / يسار للمحامي)
   final DateTime timestamp;
-  final bool hasAttachments; // 👈 أضفنا هذا السطر
+  final bool hasAttachments;
 
   const ChatMessage({
     required this.id,
@@ -14,7 +16,7 @@ class ChatMessage {
     required this.senderId,
     required this.isUser,
     required this.timestamp,
-    this.hasAttachments = false, // 👈 جعلناه اختيارياً بقيمة افتراضية
+    this.hasAttachments = false,
   });
 
   factory ChatMessage.fromMap(
@@ -25,8 +27,7 @@ class ChatMessage {
       senderId: map['senderId'] ?? '',
       isUser: map['senderId'] == currentUserId,
       timestamp: (map['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      hasAttachments:
-          map['hasAttachments'] ?? false, // 👈 قراءة الحالة من الفايربيس
+      hasAttachments: map['hasAttachments'] ?? false,
     );
   }
 
@@ -35,7 +36,7 @@ class ChatMessage {
       'text': text,
       'senderId': senderId,
       'timestamp': FieldValue.serverTimestamp(),
-      'hasAttachments': hasAttachments, // 👈 إرسال الحالة للفايربيس
+      'hasAttachments': hasAttachments,
     };
   }
 }

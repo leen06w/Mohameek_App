@@ -11,8 +11,11 @@ import '../services/requests_service.dart';
 import '../services/session_service.dart';
 import '../models/lawyer.dart';
 import '../services/auth_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // مكتبة الفايربيس الأساسية لإدارة قواعد البيانات اللحظية والـ Streams
 
+/// كلاس من نوع StatefulWidget يمثل اللوحة الرئيسية والتحكم الشاملة الخاصة بالمحامي.
+/// يقوم الكلاس بتهيئة الخدمات الحية وإدارة الحالات المتغيرة ديناميكياً بالواجهة،
+/// مثل تتبع عداد الإشعارات غير المقروءة، وإدارة العمليات اللحظية بداخل الشاشة
 class LawyerDashboardScreen extends StatefulWidget {
   const LawyerDashboardScreen({super.key});
 
@@ -22,9 +25,10 @@ class LawyerDashboardScreen extends StatefulWidget {
 
 class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
   final AuthService _authService = AuthService();
-  Lawyer? lawyer;
+  Lawyer? lawyer; // كائن لحفظ بيانات المحامي الحالي المسجل دخوله
   final RequestsService _requestsService = RequestsService();
 
+// مصفوفة كائنات الإحصائيات الأربعة المعروضة بأعلى لوحة التحكم
   final List<_LawyerStat> stats = [
     _LawyerStat(
       label: 'الاستشارات',
@@ -52,6 +56,7 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
     ),
   ];
 
+// مصفوفة بيانات المواعيد القادمة اليوم وغداً
   final List<_Appointment> upcomingAppointments = const [
     _Appointment(
       id: '1',
@@ -78,12 +83,14 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
       urgent: false,
     ),
   ];
+  // دالة ذكية لحقن بيانات القضايا التجريبية في الفايربيس لضمان عدم ظهور الشاشة فارغة بالمناقشة
   Future<void> _seedLawyerCases() async {
     final CollectionReference casesRef =
         FirebaseFirestore.instance.collection('lawyerCases');
 
     final existing = await casesRef.get();
-    if (existing.docs.isNotEmpty) return;
+    if (existing.docs.isNotEmpty)
+      return; // إذا كانت البيانات موجودة مسبقاً، نوقف الدالة فوراً منعاً للتكرار
 
     final List<Map<String, dynamic>> cases = [
       {
@@ -129,13 +136,14 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
     ];
 
     for (var c in cases) {
-      await casesRef.add(c);
+      await casesRef.add(c); // إضافة المستندات تلو الآخر لجدول الفايربيس
     }
   }
 
   late final List<_PendingRequest> _pendingRequests;
   final Set<String> _viewedRequestIds = <String>{};
 
+// مجموعة فريدة (Set) لتتبع وحفظ الأرقام المعرفية للطلبات التي قام المحامي بالاطلاع على تفاصيلها
   late List<_LawyerNotificationItem> _notifications;
   int _unreadNotificationsCount = 0;
 
@@ -146,6 +154,7 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
     _loadLawyerData();
     _seedLawyerCases();
 
+// إعداد عينات طلبات الطلاب الواردة بانتظار قرار المحامي
     _pendingRequests = <_PendingRequest>[
       const _PendingRequest(
         id: '1',
@@ -186,6 +195,7 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
     _seedNotifications();
   }
 
+// جلب بيانات المحامي الحالي وتحديث حالة الواجهة بناءً عليها
   Future<void> _loadLawyerData() async {
     final user = await _authService.getCurrentUser();
     if (user != null && mounted) {
@@ -195,6 +205,7 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
     }
   }
 
+// توليد قائمة إشعارات وهمية منوعة للمحامي لمحاكاة حركة النظام اللحظية
   void _seedNotifications() {
     _notifications = [
       const _LawyerNotificationItem(
@@ -231,8 +242,9 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
       ),
     ];
 
-    _unreadNotificationsCount =
-        _notifications.where((item) => item.isUnread).length;
+    _unreadNotificationsCount = _notifications
+        .where((item) => item.isUnread)
+        .length; // حساب عدد الإشعارات غير المقروءة ديناميكياً
   }
 
   Future<void> _seedRequestsIfNeeded() async {
@@ -258,6 +270,7 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
     }
   }
 
+// دالة تسجيل الخروج وتطهير الجلسة الحالية والتحويل لشاشة الدخول
   Future<void> _logout() async {
     await SessionService().clear();
     if (!mounted) return;
@@ -267,6 +280,7 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
     );
   }
 
+// فتح لوحة الإشعارات المنبثقة من الأسفل وتصفير عداد غير المقروء فور الفتح لراحة المستخدم
   void _openNotificationsSheet() {
     final hadUnread = _notifications.any((item) => item.isUnread);
 
@@ -331,11 +345,14 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
     );
   }
 
+// فتح نافذة تفاصيل الطلب وتسجيل الـ ID الخاص به كمقروء ومطلع عليه لتفعيل أزرار القرار
   Future<void> _openRequestDetails(_PendingRequest request) async {
-    _viewedRequestIds.add(request.id);
+    _viewedRequestIds
+        .add(request.id); // حقن المعرف الفرعي في الـ Set كمطلع عليه
 
     if (!mounted) return;
-    setState(() {});
+    setState(
+        () {}); // إعادة بناء الواجهة لتتحول البطاقة إلى حالة "تم الاطلاع" باللون الأزرق
 
     await showDialog<void>(
       context: context,
@@ -411,6 +428,7 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
     );
   }
 
+// دالة تأكيد قبول الطلب وتحديث حالته بجدول الخدمة
   Future<void> _confirmAccept({
     required _PendingRequest request,
   }) async {
@@ -448,7 +466,7 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
         false;
 
     if (!confirmed) return;
-
+// تحديث البيانات في السيرفر الرسمي
     await _requestsService.updateRequestStatus(
       requestId: request.id,
       status: 'accepted',
@@ -460,7 +478,7 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
 
     setState(() {
       _pendingRequests.removeWhere((item) => item.id == request.id);
-      _viewedRequestIds.remove(request.id);
+      _viewedRequestIds.remove(request.id); // مسحه محلياً من قائمة الانتظار
     });
 
     _showActionSnackBar(
@@ -468,6 +486,7 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
     );
   }
 
+// فتح نافذة الرفض مع حقل نصي إجباري لكتابة السبب وإرساله للعميل
   Future<void> _showRejectReasonDialog({
     required _PendingRequest request,
   }) async {
@@ -486,6 +505,7 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) {
+        // استخدام StatefulBuilder لإدارة حالة الـ Validation بشكل مستقل وسريع داخل الـ Dialog
         return StatefulBuilder(
           builder: (context, setInnerState) {
             return AlertDialog(
@@ -507,7 +527,8 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
                     maxLines: 4,
                     decoration: InputDecoration(
                       hintText: 'اكتب سبب الرفض هنا...',
-                      errorText: validationError,
+                      errorText:
+                          validationError, // عرض خطأ الـ Validation باللون الأحمر إذا كان الحقل فارغاً
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -557,7 +578,7 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
     reasonController.dispose();
 
     if (result == null || result.trim().isEmpty) return;
-
+// رفع سبب الرفض للفايربيس وتحديث حالة المستند
     await _requestsService.updateRequestStatus(
       requestId: request.id,
       status: 'rejected',
@@ -636,6 +657,7 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // لوحة الترحيب العلوية بـ التدرج اللوني الجذاب ومؤشر حالة الحساب الفعلي للمحامي
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -697,6 +719,7 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
             ),
           ),
           const SizedBox(height: 24),
+          // شبكة الإحصائيات الأربعة (GridView)
           GridView.builder(
             itemCount: stats.length,
             shrinkWrap: true,
@@ -856,12 +879,12 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          // الربط الحي والمباشر مع الفايربيس لعرض القضايا الخمس
+          // --- البث اللحظي الحي المستمر من قاعدة بيانات Cloud Firestore جلب وعرض القضايا ---
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('lawyerCases')
                 .orderBy('timestamp', descending: true)
-                .snapshots(),
+                .snapshots(), // التسمع اللحظي على السيرفر
             builder: (context, snapshot) {
               if (snapshot.hasError) return const Text('خطأ في التحميل');
               if (snapshot.connectionState == ConnectionState.waiting)
@@ -875,7 +898,7 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
 
                   // تحويل بيانات الفايربيس إلى كائن LegalCase مع إضافة الحقول المطلوبة
                   final caseItem = LegalCase(
-                    id: doc.id, // نأخذ الـ id من وثيقة الفايربيس نفسها
+                    id: doc.id,
                     title: data['title'] ?? 'بدون عنوان',
                     client: data['client'] ?? 'عميل مجهول',
                     status: data['status'] ?? 'جديدة',
@@ -1052,6 +1075,7 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
                           ),
                         ),
                         const SizedBox(height: 10),
+                        // نص ارشادي ذكي يتغير لونه وحالته لتنبيه المحامي بضرورة الاطلاع أولاً
                         Text(
                           hasViewed
                               ? 'يمكنك الآن اتخاذ القرار.'
@@ -1101,6 +1125,7 @@ class _LawyerDashboardScreenState extends State<LawyerDashboardScreen> {
   }
 }
 
+// --- بقية ويدجت الواجهة المساعدة والثابتة للهيكل البصري الشاشة ---
 class _LawyerNotificationBellButton extends StatelessWidget {
   final int count;
   final VoidCallback onTap;
@@ -1611,6 +1636,10 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
+/// كلاس بيانات مصغر (Data Model) مستقل وخاص ببطاقات الإحصائيات العلوية.
+/// فائدته البرمجية هي تطبيق مبدأ تنظيم وفصل البيانات (Data Separation)،
+/// حيث يحدد القالب الهيكلي الثابت الذي يجمع خصائص كل بطاقة رقمية
+/// (العنوان النصي، القيمة العددية، اللون البصري المخصص، والأيقونة المرافقة) قبل توزيعها بالـ GridView.
 class _LawyerStat {
   final String label;
   final String value;
@@ -1625,6 +1654,9 @@ class _LawyerStat {
   });
 }
 
+/// كلاس بيانات مصغر (Data Model) مخصص لتعريف بنية جدول "المواعيد القادمة" للمحامي.
+/// يحدد الحقول الأساسية لكل موعد مجدول (المعرف الرقمي، اسم العميل، تصنيف المقابلة، التوقيت، والتاريخ)،
+/// ويحتوي على متغير منطقي [urgent] لتمييز الطلبات الحرجة والطارئة بصرياً باللون الأحمر داخل الواجهة.
 class _Appointment {
   final String id;
   final String client;
@@ -1643,6 +1675,9 @@ class _Appointment {
   });
 }
 
+/// كلاس بيانات تفصيلي يمثل القالب الكامل لـ "طلب الاستشارة الوارد قيد الانتظار" من الطلاب.
+/// يجمع الحقول الكاملة للمشكلة القانونية (بيانات الطالب، الميزانية، نوع القضية، والوصف المشروح)،
+/// ليعرضها للمحامي عند النقر على "التفاصيل"، ويُبنى عليه شرط إجبارية الاطلاع قبل اتخاذ قرار القبول أو الرفض.
 class _PendingRequest {
   final String id;
   final String client;
@@ -1682,6 +1717,9 @@ enum _LawyerNotificationType {
   system,
 }
 
+/// كلاس بيانات متقدم مخصص لصياغة بنية الإشعارات والرسائل الواردة للمحامي وتصنيف أنواعها.
+/// تكمن ميزته البرمجية في احتوائه على دالة [copyWith] الاحترافية، والتي تسمح بنسخ كائن الإشعار
+/// وتحديث حالة واحدة فقط فيه (مثل تحويله من غير مقروء إلى مقروء) فور فتح القائمة دون تدمير بقية البيانات.
 class _LawyerNotificationItem {
   final String title;
   final String body;

@@ -4,6 +4,8 @@ import '../core/theme/app_colors.dart';
 import '../models/app_user.dart';
 import '../services/auth_service.dart';
 
+/// كلاس من نوع StatefulWidget يمثل شاشة "إنشاء حساب جديد" المخصصة للطلاب والمستخدمين العاديين.
+/// يتولى الكلاس جمع وتحليل البيانات الشخصية والجغرافية، والتحقق من سلامة كلمات المرور وتطابقها، وربطها بالسيرفر.
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
 
@@ -11,19 +13,21 @@ class SignUpScreen extends StatefulWidget {
   State<SignUpScreen> createState() => _SignUpScreenState();
 }
 
+/// كلاس الحالة الديناميكي المسؤول عن إدارة الفالديتور، والتحكم بالأمان البصري لكشف كلمات المرور، وهندسة النوافذ الحوارية الناجحة.
 class _SignUpScreenState extends State<SignUpScreen> {
   final _formKey = GlobalKey<FormState>();
 
+// --- متحكمات الحقول النصية لبيانات الطالب (TextEditingControllers) ---
   final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _addressController = TextEditingController();
-  final _cityController =
-      TextEditingController(); // تركتها فارغة لتطابق الـ validator الخاص بكِ
+  final _cityController = TextEditingController();
 
-  final _authService = AuthService();
+  final _authService =
+      AuthService(); // تهيئة خدمة المصادقة للربط الفوري مع Firebase
 
   bool _submitting = false;
   bool _obscurePassword = true;
@@ -31,6 +35,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   void dispose() {
+    // تفريغ كافة الكنترولرز من الذاكرة العشوائية فور مغادرة الصفحة لمنع الـ Memory Leaks
     _fullNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
@@ -41,17 +46,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
+  /// الدالة الأساسية لمعالجة شروط الفحص وإنشاء حساب العميل الجديد بـ قاعدة بيانات الفايربيس
   Future<void> _submit() async {
-    FocusScope.of(context).unfocus();
+    FocusScope.of(context)
+        .unfocus(); // إغلاق لوحة مفاتيح الهاتف تلقائياً فور النقر لدعم تجربة المستخدم UX
 
+// 1. فحص استيفاء شروط الـ Validator لكافة الحقول المدخلة بالنموذج
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _submitting = true);
+    setState(() => _submitting =
+        true); // تفعيل حلقة التحميل بالزر وقفل التفاعل لمنع الطلبات المزدوجة
 
     try {
-      // بناء كائن المستخدم بناءً على الموديل الخاص بكِ
+      // 2. بناء كائن مستخدم جديد بالاعتماد على الموديل الرئيسي AppUser وحقن صلاحية مستخدم عادي (user)
       final user = AppUser(
-        id: '', // سيقوم AuthService بتوليده
+        id: '', // يتم توليد المعرف الفرعي التلقائي (uid) بداخل الـ AuthService بواسطة الفايربيس
         name: _fullNameController.text.trim(),
         email: _emailController.text.trim(),
         phone: _phoneController.text.trim(),
@@ -60,13 +69,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
         role: 'user',
       );
 
-      // هذا هو السطر الذي كان فيه الخطأ في الصورة، الآن هو صحيح:
+// 3. استدعاء دالة التسجيل بالخلفية وتمرير كائن البيانات مع النص الصريح المفلتر لكلمة المرور
       final result =
           await _authService.signup(user, _passwordController.text.trim());
-      if (!mounted) return;
+      if (!mounted)
+        return; // فحص أمان للتأكد من بقاء الشاشة نشطة قبل تحديث الواجهة الرسومية
 
-      setState(() => _submitting = false);
-
+      setState(
+          () => _submitting = false); // إيقاف التحميل بعد ورود استجابة السيرفر
+// 4. معالجة نتيجة الرفع؛ وعرض تنبيه سفلي مخصص في حال حدوث عطل أو تكرار بالبريد
       if (!result.success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -77,6 +88,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         return;
       }
 
+// 5. في حال النجاح التام؛ يتم فتح نافذة الترحيب الحوارية المشروحة بالأسفل
       await _showSuccessDialog(
         title: 'تم إنشاء الحساب بنجاح',
         message:
@@ -85,6 +97,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       );
 
       if (!mounted) return;
+      // نقل الطالب جذرياً للوحة التحكم الرئيسية الخاصة بالمستخدمين ومسح سجل العودة للخلف تأميناً للحساب
       Navigator.pushReplacementNamed(context, AppRoutes.userDashboard);
     } catch (e) {
       setState(() => _submitting = false);
@@ -92,8 +105,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
   }
 
-  // --- دوال الواجهة (UI Widgets) الأصلية الخاصة بكِ دون أي تغيير في التصميم ---
-
+  /// بناء وإظهار نافذة النجاح الحوارية المنبثقة بشكل فخم يعزز الثقة البصرية بالتطبيق
   Future<void> _showSuccessDialog({
     required String title,
     required String message,
@@ -101,7 +113,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }) async {
     await showDialog<void>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible:
+          false, // حظر إغلاق النافذة عند النقر خارجها لضمان إكمال التوجيه بالشكل السليم
       builder: (context) {
         return Dialog(
           insetPadding: const EdgeInsets.symmetric(horizontal: 24),
@@ -112,6 +125,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // تصميم وسام الدائرة الأخضر الخاص بالنجاح
                 Container(
                   width: 84,
                   height: 84,
@@ -157,11 +171,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
+// دالة معالجة العودة للشاشة السابقة بأمان
   void _handleBack() {
     if (Navigator.canPop(context)) Navigator.pop(context);
   }
 
-  // دالة الديكور الأصلية الخاصة بكِ
+  /// دالة مساعدة لتوفير وتوحيد وتنسيق المظهر والزوايا والظلال لجميع حقول النص بالنموذج
   InputDecoration _inputDecoration(
       {required String hint, required IconData icon, Widget? suffixIcon}) {
     return InputDecoration(
@@ -182,6 +197,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
+  /// مكون إعادة الاستخدام البرمي (Reusable Component Widget) لبناء حقول الإدخال مضافاً إليها عناوينها وفحوصاتها التلقائية
   Widget _buildField({
     required String label,
     required String hint,
@@ -214,6 +230,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
+  /// دالة فصل الواجهة: مسؤولة عن رسم وتنسيق اللوجو والشريط العلوي الترحيبي بـ الشاشة
   Widget _buildTopHeader() {
     return Column(
       children: [
@@ -249,6 +266,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
+  /// دالة فصل الواجهة: مسؤولة عن تعبئة وتنظيم كرت الفورم المحتوي على الـ 7 حقول للفحص والتسجيل
   Widget _buildFormCard() {
     return Container(
       padding: const EdgeInsets.all(18),
@@ -258,14 +276,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
         border: Border.all(color: AppColors.border),
       ),
       child: Form(
-        key: _formKey,
+        key: _formKey, // ربط الفورم بالمفتاح العالمي
         child: Column(
           children: [
             _buildField(
                 label: 'الاسم الكامل',
                 hint: 'أدخل اسمك الكامل',
                 icon: Icons.person_outline,
-                controller: _fullNameController,
+                controller:
+                    _fullNameController, // إخفاء أو كشف الحروف بناءً على المتغير
                 validator: (v) => v!.trim().isEmpty ? 'الحقل مطلوب' : null),
             _buildField(
                 label: 'البريد الإلكتروني',
@@ -369,6 +388,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: ListView(
+          // استخدام الـ ListView للسماح بالتمرير عند خروج لوحة مفاتيح الهاتف ومنع الـ Overflow
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           children: [
             _buildTopHeader(),

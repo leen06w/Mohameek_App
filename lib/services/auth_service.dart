@@ -3,12 +3,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/app_user.dart';
 import 'session_service.dart';
 
+/// الخدمة المركزية المسؤولة عن نظام المصادقة (Authentication).
+/// تتواصل مع Firebase Auth للتحقق من الحسابات ومع Firestore لجلب بيانات المستخدمين.
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final SessionService _session = SessionService();
 
-  /// 🔐 تسجيل الدخول الحقيقي من الفايربيس
+  /// دالة تسجيل الدخول: تتحقق من البريد وكلمة المرور وتجلب بيانات الدور (Role) من Firestore.
   Future<LoginResult> login({
     required String email,
     required String password,
@@ -18,6 +20,7 @@ class AuthService {
         email: email,
         password: password,
       );
+      // جلب بيانات المستخدم الإضافية (مثل الاسم والدور) من قاعدة البيانات
 
       DocumentSnapshot doc =
           await _db.collection('Users').doc(credential.user!.uid).get();
@@ -39,6 +42,7 @@ class AuthService {
         role: data['role'] ?? 'user',
       );
 
+      // حفظ بيانات الجلسة محلياً لسرعة الوصول
       await _session.saveUser(user);
       return LoginResult(success: true, user: user);
     } on FirebaseAuthException catch (e) {
@@ -49,7 +53,7 @@ class AuthService {
     }
   }
 
-  /// 🆕 إنشاء حساب حقيقي (للمستخدمين والمحامين)
+  /// دالة إنشاء حساب جديد وتخزين البيانات في Firestore مع حفظ الجلسة محلياً.
   Future<LoginResult> signup(AppUser user, String password) async {
     try {
       // 1. إنشاء الحساب في Firebase Authentication
@@ -69,13 +73,13 @@ class AuthService {
         'role': user.role,
         'status': user.status,
         'specialty': user.specialty,
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt':
+            FieldValue.serverTimestamp(), // تخزين وقت إنشاء الحساب بدقة السيرفر
       };
 
       // 3. التخزين في مجموعة Users
       await _db.collection('Users').doc(credential.user!.uid).set(userData);
 
-      // 4. تحديث كائن المستخدم بالـ ID الجديد وحفظ الجلسة
       final newUser = AppUser(
         id: credential.user!.uid,
         name: user.name,
@@ -95,17 +99,17 @@ class AuthService {
     }
   }
 
-  /// 👤 جلب المستخدم الحالي
+  /// جلب بيانات المستخدم المسجل حالياً من الجلسة المحفوظة.
   Future<AppUser?> getCurrentUser() async {
     return await _session.getUser();
   }
 
-  /// ✏️ تحديث بيانات المستخدم (عشان يختفي الخطأ اللي في الصورة)
+  /// تحديث بيانات المستخدم وتعديلها في الجلسة المحلية.
   Future<void> updateUser(AppUser user) async {
     await _session.saveUser(user);
   }
 
-  /// 🚪 تسجيل خروج
+  /// تسجيل الخروج وتطهير الجلسة الحالية
   Future<void> logout() async {
     await _auth.signOut();
     await _session.clear();

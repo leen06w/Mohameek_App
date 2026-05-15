@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_map/flutter_map.dart'; // مكتبة الخرائط المفتوحة لتحديد موقع مكتب المحامي جغرافياً
+import 'package:latlong2/latlong.dart'; // لتمثيل خطوط الطول والعرض الجغرافية بدقة
+import 'package:url_launcher/url_launcher.dart'; // مكتبة لفتح الروابط والتطبيقات الخارجية مثل قوقل ماب وإيرث
 
 import '../app.dart';
 import '../core/theme/app_colors.dart';
@@ -9,6 +9,8 @@ import '../core/widgets/ui.dart';
 import '../models/app_user.dart';
 import '../services/auth_service.dart';
 
+// كلاس من نوع StatefulWidget يمثل شاشة "التسجيل كخبير قانوني" في التطبيق.
+/// يتولى الكلاس تهيئة وإدارة حقول الإدخال والتحقق من صحتها، والالتقاط التفاعلي لموقع المكتب عبر الخريطة.
 class LawyerSignUpScreen extends StatefulWidget {
   const LawyerSignUpScreen({super.key});
 
@@ -16,11 +18,14 @@ class LawyerSignUpScreen extends StatefulWidget {
   State<LawyerSignUpScreen> createState() => _LawyerSignUpScreenState();
 }
 
+/// كلاس الحالة الديناميكي المسؤول عن إدارة النماذج، والتحقق من المدخلات، والاتصال بـ الـ AuthService لحقن الحساب بالفايربيس.
 class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _authService = AuthService();
+  final _formKey = GlobalKey<
+      FormState>(); // مفتاح عالمي للتحقق من صحة جميع حقول النموذج مجتمعة
+  final _authService =
+      AuthService(); // استدعاء خدمة المصادقة والربط بقاعدة البيانات
 
-  // Controllers
+  // --- أدوات التحكم البرمجي بالحقول النصية (TextEditingControllers) ---
   final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -37,10 +42,11 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
   final _cityController = TextEditingController(text: 'المنطقة الشرقية');
   final _zipCodeController = TextEditingController();
 
-  bool _submitting = false;
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
-  String? _selectedGender;
+  bool _submitting =
+      false; // تتبع حالة الرفع للسيرفر لإظهار مؤشر التحميل وحظر النقرات العشوائية
+  bool _obscurePassword = true; // التحكم بإخفاء وإظهار كلمة المرور
+  bool _obscureConfirmPassword = true; // التحكم بإخفاء وإظهار تأكيد كلمة المرور
+  String? _selectedGender; // حفظ الجنس المختار (ذكر / أنثى)
   LatLng _selectedLocation =
       const LatLng(26.4207, 50.0888); // إحداثيات الدمام كافتراضي
 
@@ -58,11 +64,13 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
     }
   }
 
+// دالة التحقق النهائي وإرسال طلب تسجيل الحساب القانوني إلى الفايربيس
   Future<void> _submit() async {
-    FocusScope.of(context).unfocus();
-
+    FocusScope.of(context)
+        .unfocus(); // إغلاق لوحة المفاتيح تلقائياً لتحسين تجربة المستخدم (UX)
+// 1. فحص شروط الفالديتور لكافة حقول الواجهة
     if (!_formKey.currentState!.validate()) return;
-
+// 2. التحقق من اختيار الجنس وإظهار تنبيه في حال نسياقه
     if (_selectedGender == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -72,8 +80,8 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
       return;
     }
 
-    setState(() => _submitting = true);
-
+    setState(() => _submitting = true); // تشغيل مؤشر التحميل بالزر
+// 3. بناء وتجهيز كائن مستخدم من نوع الموديل AppUser بالبيانات المجمعة
     try {
       final user = AppUser(
         id: '',
@@ -93,14 +101,14 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
         zipCode: _zipCodeController.text,
       );
 
-      // تم حذف كلمة password من هنا لأن الـ AuthService عندك يقبل user فقط
+      // 4. استدعاء خدمة التسجيل وتمرير كائن البيانات وكلمة المرور المشفرة
       final result =
           await _authService.signup(user, _passwordController.text.trim());
       if (!mounted) return;
       setState(() => _submitting = false);
 
       if (result.success) {
-        _showSuccessDialog();
+        _showSuccessDialog(); // فتح نافذة النجاح الحوارية عند اكتمال الرفع بنجاح
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(result.errorMessage ?? 'فشل التسجيل')),
@@ -112,6 +120,7 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
     }
   }
 
+// إظهار نافذة الحوار المخصصة لإبلاغ المحامي بأن طلبه معلق وقيد المراجعة الإدارية الحالية
   void _showSuccessDialog() {
     showDialog(
       context: context,
@@ -135,9 +144,10 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('التسجيل كخبير قانوني')),
       body: SingleChildScrollView(
+        // استخدام التمرير المفرد لحماية أبعاد الشاشة من الـ Overflow عند ظهور الكيبورد
         padding: const EdgeInsets.all(20),
         child: Form(
-          key: _formKey,
+          key: _formKey, // ربط حقول الإدخال بالمفتاح العالمي للفورم
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -148,6 +158,7 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
                   'البريد الإلكتروني', _emailController, Icons.email),
               _buildTextField('رقم الهاتف', _phoneController, Icons.phone),
               DropdownButtonFormField<String>(
+                // حقل القائمة المنسدلة لاختيار الجنس
                 initialValue: _selectedGender,
                 decoration: InputDecoration(
                     labelText: 'الجنس',
@@ -164,9 +175,11 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
               _buildTextField('التخصص', _specializationController, Icons.star),
               _buildTextField(
                   'رقم الترخيص', _licenseNumberController, Icons.badge),
+              // حقل اختيار تاريخ الترخيص المرتبط بـ الرزنامة
               TextFormField(
                 controller: _licenseDateController,
-                readOnly: true,
+                readOnly:
+                    true, // جعل الحقل للقراءة فقط لإجبار المستخدم على استخدام الرزنامة لضمان سلامة التواريخ
                 onTap: () => _selectDate(context),
                 decoration: InputDecoration(
                     labelText: 'تاريخ الترخيص',
@@ -188,6 +201,7 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
               const Text('اضغط على الخريطة لتحديد موقع المكتب',
                   style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
+              // حاوية الخريطة التفاعلية المخصصة لالتقاط إحداثيات موقع مكتب المحاماة الجديد
               Container(
                 height: 200,
                 decoration: BoxDecoration(
@@ -201,9 +215,8 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
                         onTap: (_, p) => setState(() => _selectedLocation = p)),
                     children: [
                       TileLayer(
-                        // تم تصحيح التكرار هنا
                         urlTemplate:
-                            'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                            'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', // قالب الخريطة المريح والواضح بصرياً للويب والجوال
                         subdomains: const ['a', 'b', 'c', 'd'],
                       ),
                       MarkerLayer(markers: [
@@ -216,6 +229,7 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
                   ),
                 ),
               ),
+              // صف أزرار الربط التفاعلي والتكامل الخارجي مع أنظمة الخرائط
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
@@ -249,6 +263,7 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
                   onToggle: () => setState(() =>
                       _obscureConfirmPassword = !_obscureConfirmPassword)),
               const SizedBox(height: 30),
+              // زر إرسال الطلب النهائي التفاعلي
               PrimaryButton(
                   text: _submitting ? 'جاري الإرسال...' : 'إرسال طلب التسجيل',
                   onPressed: _submitting ? null : _submit),
@@ -259,7 +274,7 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
     );
   }
 
-  // دالة لفتح الخرائط (Google Maps)
+  // دالة التكامل الخارجي لفتح إحداثيات المكتب الملتقطة داخل تطبيق خرائط جوجل (Google Maps) المعتمد بالهاتف
   Future<void> _openGoogleMaps() async {
     final url =
         'https://www.google.com/maps/search/?api=1&query=${_selectedLocation.latitude},${_selectedLocation.longitude}';
@@ -268,7 +283,7 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
     }
   }
 
-  // دالة لفتح قوقل إيرث (Google Earth)
+  // دالة التكامل الخارجي لفتح الإحداثيات المحددة وعرض مكتب المحامي ثلاثي الأبعاد بداخل منصة (Google Earth)
   Future<void> _openGoogleEarth() async {
     final url =
         'https://earth.google.com/web/@${_selectedLocation.latitude},${_selectedLocation.longitude},1000d';
@@ -287,6 +302,7 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
     );
   }
 
+// دالة مساعدة لبناء وتنسيق عناوين الأقسام الفرعية بالواجهة بلون التطبيق الأساسي
   Widget _buildSectionTitle(String t) => Padding(
       padding: const EdgeInsets.only(top: 20, bottom: 10),
       child: Text(t,
@@ -295,6 +311,7 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
               fontWeight: FontWeight.bold,
               color: AppColors.primary)));
 
+  // ويدجت ذكية وموحدة لبناء حقول الإدخال النصية (Form Fields) وتزويدها بالفالديتور وأزرار كشف كلمات المرور آلياً
   Widget _buildTextField(String l, TextEditingController c, IconData i,
           {bool isPass = false,
           bool obscure = false,
@@ -303,7 +320,8 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
         padding: const EdgeInsets.only(bottom: 16),
         child: TextFormField(
           controller: c,
-          obscureText: isPass && obscure,
+          obscureText: isPass &&
+              obscure, // التبديل الشرطي لإخفاء النص إذا كان الحقل كلمة مرور محجوبة
           decoration: InputDecoration(
             labelText: l,
             prefixIcon: Icon(i),
@@ -315,7 +333,9 @@ class _LawyerSignUpScreenState extends State<LawyerSignUpScreen> {
                 : null,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          validator: (v) => v!.isEmpty ? 'مطلوب' : null,
+          validator: (v) => v!.isEmpty
+              ? 'مطلوب'
+              : null, // الفحص التلقائي لضمان عدم ترك المدخلات فارغة
         ),
       );
 }

@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:flutter/services.dart'; // تتيح لنا استخدام الحافظة (Clipboard) لنسخ النصوص
+import 'package:flutter_map/flutter_map.dart'; // مكتبة الخرائط المفتوحة لعرض موقع مكتب المحامي
+import 'package:latlong2/latlong.dart'; // لتحديد خطوط الطول والعرض الجغرافية بدقة
 import '../app.dart';
 import '../core/theme/app_colors.dart';
-import '../core/utils/location_links.dart';
+import '../core/utils/location_links.dart'; // روابط المساعد الخارجي لخرائط جوجل وإيرث
 import '../core/widgets/app_shell.dart';
 import '../core/widgets/ui.dart';
 import '../data/mock_data.dart';
 import '../models/lawyer.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // للاتصال وحفظ طلبات الحجز بالفايربيس
 import '../services/auth_service.dart';
 
+// كلاس مخصص لتجميع تفاصيل الحجز وتمريرها بين الواجهات بسهولة
+/// كلاس معزول لنقل وتمرير تفاصيل الحجز مجتمعة ككائن برمي واحد (Object) بين الواجهات ونظام الـ Routing.
+/// يضمن تمرير بيانات المحامي المختار وسعر الاستشارة وبقية خيارات الحجز لتقليل تكرار الأكواد.
 class BookingDetails {
   final Lawyer lawyer;
   final String consultationType;
@@ -32,8 +35,11 @@ class BookingDetails {
   });
 }
 
+/// كلاس من نوع StatefulWidget يمثل نظام "رحلة حجز الاستشارة القانونية الموجهة للطلاب".
+/// يدير تدفق خطوات الحجز الأربعة متتالية محلياً عبر [setState] لتوفير الذاكرة،
+/// ويتولى جمع كافة مدخلات الطالب (نوع الجلسة، التاريخ، التصنيف النظامي، والشرح) وحفظها بجدول [Cases] في الـ Firebase.
 class BookingScreen extends StatefulWidget {
-  final Lawyer? lawyer;
+  final Lawyer? lawyer; // تمرير بيانات المحامي المطلوب حجز استشارة لديه
 
   const BookingScreen({super.key, this.lawyer});
 
@@ -42,18 +48,21 @@ class BookingScreen extends StatefulWidget {
 }
 
 class _BookingScreenState extends State<BookingScreen> {
-  int step = 1;
-  String? selectedType;
+  int step = 1; // تتبع خطوة الحجز الحالية (من 1 إلى 4)
+  String? selectedType; // نوع الاستشارة المختارة (صوتية، مرئية، حضورية)
   String selectedDate = '';
   String selectedTime = '';
   String caseType = '';
-  final TextEditingController descriptionController = TextEditingController();
-  bool submitting = false;
+  final TextEditingController descriptionController =
+      TextEditingController(); // للتحكم بنص المشكلة القانونية
+  bool submitting =
+      false; // مؤشر لحالة إرسال الطلب وحماية البيانات من النقرات المتكررة
 
   Lawyer? _resolvedLawyer;
 
   Lawyer get lawyer => _resolvedLawyer ?? MockData.lawyers.first;
 
+// الخيارات المتاحة لتقديم الاستشارات في التطبيق
   List<Map<String, dynamic>> get consultationTypes => const [
         {
           'key': 'video',
@@ -99,6 +108,7 @@ class _BookingScreenState extends State<BookingScreen> {
         '17:00',
       ];
 
+// دالة فحص منطقية للتحقق من إدخال البيانات المطلوبة بكل خطوة قبل السماح بالانتقال للخطوة التالية
   bool get canContinue {
     if (step == 1) return selectedType != null;
     if (step == 2) return selectedDate.isNotEmpty && selectedTime.isNotEmpty;
@@ -113,6 +123,7 @@ class _BookingScreenState extends State<BookingScreen> {
 
     if (_resolvedLawyer != null) return;
 
+// استقبال كائن المحامي الممرر عبر نظام الـ Routing في فلاتر
     final args = ModalRoute.of(context)?.settings.arguments;
 
     if (widget.lawyer != null) {
@@ -132,6 +143,7 @@ class _BookingScreenState extends State<BookingScreen> {
     super.dispose();
   }
 
+// دالة لعرض رسائل التنبيه السريعة (Snackbar) للمستخدم
   void _showMessage(String message, {bool success = true}) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -144,6 +156,7 @@ class _BookingScreenState extends State<BookingScreen> {
       );
   }
 
+// دالة فتح نافذة الحوار المخصصة للنجاح والتحويل اللحظي لجدول الطلبات
   Future<void> _showCenteredSuccessAndGoToRequests() async {
     if (!mounted) return;
     await showDialog<void>(
@@ -152,7 +165,7 @@ class _BookingScreenState extends State<BookingScreen> {
       builder: (dialogContext) {
         // إضافة المؤقت الزمني هنا لينتقل تلقائياً بعد ثانيتين
         Future.delayed(const Duration(seconds: 2), () {
-          if (!mounted) return; // 👈 أضيفي هذا السطر هنا
+          if (!mounted) return;
           Navigator.pushNamedAndRemoveUntil(
             context,
             AppRoutes.userRequests,
@@ -223,6 +236,7 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+// دالة التقدم للخطوة التالية
   void _next() {
     if (!canContinue) {
       _showValidationMessage();
@@ -233,12 +247,14 @@ class _BookingScreenState extends State<BookingScreen> {
     }
   }
 
+// دالة الرجوع للخطوة السابقة
   void _previous() {
     if (step > 1) {
       setState(() => step = step - 1);
     }
   }
 
+// إعادة ضبط خيارات الحجز والبدء من جديد
   void _resetBooking() {
     setState(() {
       step = 1;
@@ -251,6 +267,7 @@ class _BookingScreenState extends State<BookingScreen> {
     _showMessage('تمت إعادة تعيين بيانات الحجز');
   }
 
+// فحص وإظهار رسالة الخطأ المناسبة للمستخدم في حال تخطي الحقول فارغة
   void _showValidationMessage() {
     String message = 'يرجى إكمال البيانات المطلوبة';
 
@@ -275,6 +292,7 @@ class _BookingScreenState extends State<BookingScreen> {
     return item['label'] as String;
   }
 
+// دالة إرسال الطلب وحفظ البيانات في قاعدة بيانات Cloud Firestore
   Future<void> _submitRequest() async {
     if (!canContinue || selectedType == null) {
       _showValidationMessage();
@@ -323,6 +341,7 @@ class _BookingScreenState extends State<BookingScreen> {
     }
   }
 
+// فتح موقع المحامي في تطبيق خرائط جوجل الخارجي بالهاتف
   Future<void> _openGoogleMapsExternal() async {
     await LocationLinks.openMaps(
       context,
@@ -331,6 +350,7 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+// فتح موقع المحامي في تطبيق جوجل إيرث الخارجي بالهاتف
   Future<void> _openGoogleEarthExternal() async {
     await LocationLinks.openEarth(
       context,
@@ -339,6 +359,7 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+// نسخ إحداثيات موقع المحامي الجغرافية لحافظة جهاز العميل
   Future<void> _copyCoordinates() async {
     final coords =
         '${lawyer.lat.toStringAsFixed(6)}, ${lawyer.lng.toStringAsFixed(6)}';
@@ -359,6 +380,7 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+// بناء واجهة الخريطة التفاعلية والتحكم ببيانات الموقع الجغرافي
   Widget _buildElegantMapSection() {
     final coordsText =
         '${lawyer.lat.toStringAsFixed(6)}, ${lawyer.lng.toStringAsFixed(6)}';
@@ -437,7 +459,8 @@ class _BookingScreenState extends State<BookingScreen> {
                     initialCenter: LatLng(lawyer.lat, lawyer.lng),
                     initialZoom: 14,
                     interactionOptions: const InteractionOptions(
-                      flags: InteractiveFlag.none,
+                      flags: InteractiveFlag
+                          .none, // لمنع تفاعل المستخدم مع الخريطة المصغرة للحفاظ على الأداء
                     ),
                   ),
                   children: [
@@ -552,10 +575,12 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+// دالة فتح ورقة الموقع الجغرافي المنبثقة من الأسفل عند اختيار استشارة حضورية
   void _openLocationSheet() {
     showModalBottomSheet<void>(
       context: context,
-      isScrollControlled: true,
+      isScrollControlled:
+          true, // لتجعل مساحة النافذة متأقلمة مع حجم الخريطة والبيانات
       backgroundColor: Colors.transparent,
       builder: (_) {
         return Container(
@@ -576,7 +601,7 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                _buildElegantMapSection(),
+                _buildElegantMapSection(), // حقن قسم الخريطة والتحكم بالإحداثيات هنا
                 const SizedBox(height: 16),
                 PrimaryButton(
                   text: 'إغلاق',
@@ -590,6 +615,7 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+// بطاقة عرض ملخص خيارات الحجز للتأكيد النهائي في الخطوة الأخيرة
   Widget _buildSummaryCard() {
     return SectionCard(
       child: Column(
@@ -620,6 +646,8 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+// --- واجهات الخطوات الأربعة للحجز ---
+// الخطوة الأولى: اختيار تصنيف الاستشارة
   Widget _buildTypeStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -687,6 +715,7 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+// الخطوة الثانية: اختيار تاريخ ووقت الجلسة
   Widget _buildDateTimeStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -744,6 +773,7 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+// الخطوة الثالثة: تحديد تصنيف القضية القانونية
   Widget _buildCaseTypeStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -791,6 +821,7 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+// الخطوة الرابعة: شرح المشكلة القانونية بالتفصيل وتأكيد الملخص
   Widget _buildDescriptionStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -834,6 +865,7 @@ class _BookingScreenState extends State<BookingScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // رسم شريط التقدم الدائري للخطوات بشكل تفاعلي ومحفز للـ UI
           Row(
             children: List.generate(
               4,
@@ -893,7 +925,8 @@ class _BookingScreenState extends State<BookingScreen> {
                 ),
                 if (selectedType == 'inperson')
                   TextButton.icon(
-                    onPressed: _openLocationSheet,
+                    onPressed:
+                        _openLocationSheet, // فتح تفاصيل الخريطة إذا كانت الاستشارة حضورية بمكتب المحامي
                     icon: const Icon(Icons.location_on_outlined),
                     label: const Text('الموقع'),
                   ),
@@ -901,6 +934,7 @@ class _BookingScreenState extends State<BookingScreen> {
             ),
           ),
           const SizedBox(height: 12),
+          // عرض الخطوة المطلوبة حالياً بناءً على قيمة المتغير step
           if (step == 1) _buildTypeStep(),
           if (step == 2) _buildDateTimeStep(),
           if (step == 3) _buildCaseTypeStep(),
@@ -956,6 +990,7 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 }
 
+// ويدجت صغيرة مخصصة لعرض مربعات الخيارات للتاريخ والوقت بتأثير حركي
 class _SelectionTile extends StatelessWidget {
   final String text;
   final bool active;
@@ -994,6 +1029,7 @@ class _SelectionTile extends StatelessWidget {
   }
 }
 
+// ويدجت بناء شكل دوائر شريط الخطوات بالأعلى وتحديد المكتمل منها
 class _StepCircle extends StatelessWidget {
   final int number;
   final int currentStep;
@@ -1034,6 +1070,7 @@ class _StepCircle extends StatelessWidget {
   }
 }
 
+// سطر عرض ملخص البيانات في البطاقة الختامية
 class _SummaryRow extends StatelessWidget {
   final String label;
   final String value;

@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:flutter_map/flutter_map.dart'; // مكتبة الخرائط المفتوحة لتحديد موقع مكتب المحامي
+import 'package:latlong2/latlong.dart'; // لتمثيل إحداثيات الموقع الجغرافي (خطوط الطول والعرض)
 import '../core/theme/app_colors.dart';
-import '../core/utils/location_links.dart';
+import '../core/utils/location_links.dart'; // روابط المساعد الخارجي لخرائط جوجل وإيرث
 import '../core/widgets/app_shell.dart';
 import '../core/widgets/ui.dart';
-import '../services/location_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/location_service.dart'; // خدمة تحديد المواقع الجغرافية وحساب المسافات
+import 'package:cloud_firestore/cloud_firestore.dart'; // مكتبة الفايربيس الأساسية لتحديث بيانات الملف الشخصي
 import '../models/app_user.dart';
 import '../services/auth_service.dart';
 
+/// كلاس من نوع StatefulWidget يدير واجهة "الملف الشخصي والمهني للمحامي".
+/// يدمج بذكاء تصفحاً ثلاثياً تبويبياً (المعلومات، الموقع الجغرافي، التقييمات) داخل بيئة واحدة [activeTab]،
+/// ويدعم التحول الديناميكي بين وضعيتين: وضع العرض الآمن، ووضع التعديل والحفظ المباشر في الـ Firestore.
 class LawyerProfileScreen extends StatefulWidget {
   const LawyerProfileScreen({super.key});
 
@@ -18,17 +21,23 @@ class LawyerProfileScreen extends StatefulWidget {
 }
 
 class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
-  int activeTab = 0;
+  int activeTab =
+      0; // التحكم بالتبويب النشط حالياً (0: المعلومات، 1: الموقع، 2: التقييمات)
   final AuthService _authService = AuthService();
   AppUser? user;
   final LocationService _locationService = LocationService();
-  final MapController _mapController = MapController();
+  final MapController _mapController =
+      MapController(); // متحكم خاص لإعادة توجيه وتحريك الخريطة برمجياً
+
+  // تعريف متأخر للكنترولرز لضمان تهيئتها النظيفة داخل initState
   late final TextEditingController _experienceController;
   late final TextEditingController _casesCountController;
 
-  UserLocationData? _userLocation;
-  bool _locating = false;
-  bool _isEditing = false;
+  UserLocationData?
+      _userLocation; // لحفظ بيانات الموقع الحالي للمستخدم عند النقر على "تحديد موقعي"
+  bool _locating = false; // مؤشر تتبع حالة جلب موقع الجوال الحالي
+  bool _isEditing =
+      false; // متغير للتحكم بوضعية الشاشة (true: وضع التعديل، false: وضع العرض فقط)
 
   late final TextEditingController _nameController;
   late final TextEditingController _specialtyController;
@@ -45,9 +54,10 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _editableLocation = const LatLng(26.4207, 50.0888);
+    _editableLocation =
+        const LatLng(26.4207, 50.0888); // إحداثيات افتراضية أولية لموقع المكتب
 
-    // تعريف الكنترولرز مرة واحدة فقط وبقيمهم النهائية للعرض
+// إعداد القيم الافتراضية للكنترولرز لتفادي ظهور حقول فارغة في حال تعطل خادم قاعدة البيانات
     _nameController = TextEditingController(text: "نورة العتيبي");
     _specialtyController =
         TextEditingController(text: "قانون الأحوال الشخصية والعمالية");
@@ -73,6 +83,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
     // _loadCurrentLawyerData();
   }
 
+// دالة جلب بيانات المحامي الحالي من الفايربيس وحقنها داخل الحقول ديناميكياً
   Future<void> _loadCurrentLawyerData() async {
     final u = await _authService.getCurrentUser();
     final String docId = u?.id ?? 'lawyer_456';
@@ -85,7 +96,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
         final data = doc.data() as Map<String, dynamic>;
 
         setState(() {
-          // 1. البيانات العلوية (الخبرة والقضايا والتقييم)
+          // 1. جلب وتحديث البيانات العلوية والإحصائية
           _nameController.text = 'نورة العتيبي';
           _experienceController.text = '7 سنوات';
           _casesCountController.text = data['casesCount'] ?? '89';
@@ -96,13 +107,13 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
               data['email'] ?? ''; // البريد الإلكتروني[cite: 2]
           _phoneController.text = data['phone'] ?? ''; // رقم الجوال[cite: 2]
 
-          // 3. معلومات المكتب (بيانات ثابتة كما طلبتِ)
+          // 3. معلومات تفاصيل المكتب الجغرافية والإدارية
           _officeNameController.text = "مكتب نورة للمحاماة والاستشارات";
           _officeAddressController.text =
               "طريق الملك فهد، حي الملقا، الرياض 12211";
           _workHoursController.text = "الأحد - الخميس | 9:00 ص - 5:00 م";
 
-          // 4. ربط التخصص وأسعار الاستشارات[cite: 2, 8]
+          // 4. ربط التخصص وأسعار الاستشارات
           _specialtyController.text =
               data['lawyerSpecialty'] ?? data['specialty'] ?? '';
           _priceController.text = data['price'] ?? '350 SAR';
@@ -113,6 +124,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
 
   @override
   void dispose() {
+    // إغلاق وتفريغ الذاكرة من كافة الكنترولرز فور الخروج من الواجهة لمنع تعليق ومشاكل الذاكرة
     _nameController.dispose();
     _specialtyController.dispose();
     _emailController.dispose();
@@ -126,6 +138,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
     super.dispose();
   }
 
+  // دالة تتبع وجلب إحداثيات موقع جوال المحامي الحالي لتسهيل حساب المسافات
   Future<void> _detectMyLocation() async {
     setState(() => _locating = true);
     final value = await _locationService.getCurrentLocation();
@@ -136,6 +149,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
     });
   }
 
+// دالة (Getter) لحساب المسافة الجغرافية بالكيلومترات بين المحامي ومكتبه ديناميكياً
   double? get _distanceKm {
     final loc = _userLocation;
     if (loc == null) return null;
@@ -147,6 +161,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
     );
   }
 
+// دالة حفظ وحقن البيانات المحدثة داخل مستند المحامي بـ مجموع الـ Users في الفايربيس
   void _toggleEdit() {
     setState(() => _isEditing = !_isEditing);
   }
@@ -162,11 +177,13 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
       'phone': _phoneController.text,
       'bio': _bioController.text,
       'officeName': _officeNameController.text,
-      'latitude': _editableLocation.latitude,
-      'longitude': _editableLocation.longitude,
+      'latitude': _editableLocation.latitude, // حفظ خط العرض المحدث من الخريطة
+      'longitude':
+          _editableLocation.longitude, // حفظ خط الطول المحدث من الخريطة
     });
 
-    setState(() => _isEditing = false);
+    setState(
+        () => _isEditing = false); // إعادة الشاشة لوضعية العرض الآمنة بعد الحفظ
 
     // إظهار رسالة النجاح
     if (mounted) {
@@ -176,14 +193,16 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
     }
   }
 
+// دالة التفاعل مع الخريطة؛ تسمح للمحامي بتغيير مكان مكتبه بنقرة ماوس واحدة أثناء وضع التعديل
   void _onMapTap(TapPosition _, LatLng latLng) {
     if (!_isEditing) return;
 
     setState(() {
-      _editableLocation = latLng;
+      _editableLocation = latLng; // تحديث الإحداثيات محلياً فور النقر
     });
 
-    _mapController.move(latLng, 15);
+    _mapController.move(latLng,
+        15); // نقل عين الكاميرا في الخريطة للنقطة الجديدة مع مستوى زووم 15
   }
 
   @override
@@ -193,6 +212,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
         title: 'الملف الشخصي',
         leadingIcon: Icons.arrow_back,
         actions: [
+          // زر علوي ذكي يتغير شكله ودالته تلقائياً؛ يُظهر "صح" للحفظ عند التعديل، ويُظهر "قلم" للبدء عند العرض
           IconButton(
             onPressed: _isEditing ? _saveProfile : _toggleEdit,
             icon: Icon(_isEditing ? Icons.check_rounded : Icons.edit_outlined),
@@ -202,6 +222,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // الكرت العلوي الأساسي لعرض الصورة والاسم والتخصص ونسب التقييم الإجمالية
           SectionCard(
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -226,6 +247,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
                     Expanded(
                       child: _isEditing
                           ? Column(
+                              // واجهة حقول الإدخال عند تفعيل وضع التعديل
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 TextField(
@@ -244,6 +266,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
                               ],
                             )
                           : Column(
+                              // واجهة النصوص الثابتة المحمية عند وضع العرض
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
@@ -311,6 +334,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
                   ],
                 ),
                 const SizedBox(height: 18),
+                // صف مربعات الإحصائيات المصغرة (الخبرة، القضايا، التقييم السريع)
                 Row(
                   children: [
                     Expanded(
@@ -342,6 +366,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          // أزرار شريط التصفح السفلي (Pills) للتنقل المرن بين أقسام الملف
           Row(
             children: [
               Expanded(
@@ -370,6 +395,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
             ],
           ),
           const SizedBox(height: 16),
+          // عرض القسم المطلوب بناءً على قيمة التبويب المختار محلياً حالياً
           if (activeTab == 0) _buildInfoTab(),
           if (activeTab == 1) _buildMapTab(),
           if (activeTab == 2) _buildReviewsTab(),
@@ -378,6 +404,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
     );
   }
 
+// --- بناء التبويب الأول: المعلومات والأسعار والترخيص ---
   Widget _buildInfoTab() {
     if (_isEditing) {
       return Column(
@@ -536,6 +563,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
     );
   }
 
+// --- بناء التبويب الثاني: الخريطة الجغرافية ومعلومات عنوان مكتب المحاماة ---
   Widget _buildMapTab() {
     final distance = _distanceKm;
 
@@ -770,6 +798,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
     );
   }
 
+// --- بناء التبويب الثالث: سجل المراجعات وتقييمات الطلاب والعملاء السابقة للمحامي ---
   Widget _buildReviewsTab() {
     const reviews = [
       (
@@ -862,6 +891,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
     );
   }
 
+// ويدجت بناء مربعات الإحصاءات الثلاثية (الخبرة والقضايا والتقييم)
   Widget _statBox(String label, String value, IconData icon) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
@@ -887,6 +917,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
     );
   }
 
+// بناء أسطر التبويب الفرعية لمعلومات البريد والجوال مع التحكم بالتوجيه
   Widget _infoTile(
     IconData icon,
     String label,
@@ -921,6 +952,7 @@ class _LawyerProfileScreenState extends State<LawyerProfileScreen> {
     );
   }
 
+// بناء أسطر أسعار قنوات تقديم الاستشارة المتنوعة
   Widget _priceRow(String label, String value) {
     return Row(
       children: [

@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // مكتبة المصادقة للربط بالـ uid الخاص بالمستخدم الحالي
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart'; // تتيح استخدام المنسقات (Formatters) للتحكم بمدخلات الكيبورد
+import 'package:cloud_firestore/cloud_firestore.dart'; // لحفظ سجلات المدفوعات الناجحة في السيرفر آلياً
 import '../core/theme/app_colors.dart';
 import '../core/widgets/app_shell.dart';
 import '../core/widgets/ui.dart';
@@ -11,8 +11,11 @@ import '../models/request_item.dart';
 import 'booking_screen.dart';
 import 'user_dashboard_screen.dart';
 
+/// كلاس من نوع StatefulWidget يمثل بوابة الدفع الإلكتروني الآمنة في التطبيق.
+/// يتولى الكلاس عرض ملخص الحجز المالي، وفحص بطاقة الائتمان، ومعالجة رمز الـ OTP، وأرشفة العملية في الـ Firestore.
 class PaymentScreen extends StatefulWidget {
-  final Object? details;
+  final Object?
+      details; // استقبال بيانات الاستشارة المحجوزة (سواء كائن BookingDetails أو RequestItem)
 
   const PaymentScreen({super.key, this.details});
 
@@ -20,19 +23,25 @@ class PaymentScreen extends StatefulWidget {
   State<PaymentScreen> createState() => _PaymentScreenState();
 }
 
+/// كلاس الحالة الديناميكي المسؤول عن معالجة الخطوات الثلاثة، وتنسيق أرقام البطاقة لحظياً، وإدارة مؤشرات الـ OTP.
 class _PaymentScreenState extends State<PaymentScreen> {
-  int step = 1;
-  bool _isProcessing = false; // 👈 تأكدي من وجود الشرطة السفلية
-  final String _selectedMethod = 'Visa';
+  int step =
+      1; // تتبع خطوة عملية الدفع الحالية (1: بيانات البطاقة، 2: رمز OTP، 3: شاشة النجاح)
+  bool _isProcessing =
+      false; // مؤشر لحالة معالجة الدفع لمنع النقر المتكرر وحماية البيانات المالية
+  final String _selectedMethod = 'Visa'; // وسيلة الدفع الافتراضية للنظام
 
+// --- متحكمات الحقول النصية لبيانات بطاقة الائتمان ---
   final cardNumberController = TextEditingController();
   final expiryController = TextEditingController();
   final cvvController = TextEditingController();
   final cardNameController = TextEditingController();
 
+// توليد مصفوفات ذكية للتحكم بالتركيز والنصوص لـ 6 خانات مخصصة لرمز الـ OTP
   final otpControllers = List.generate(6, (_) => TextEditingController());
   final otpFocusNodes = List.generate(6, (_) => FocusNode());
 
+// دالة كاشف ذكية لمعرفة نوع تفاصيل الحجز الممررة عبر الواجهات
   BookingDetails? get bookingDetails => widget.details is BookingDetails
       ? widget.details as BookingDetails
       : null;
@@ -40,6 +49,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   RequestItem? get requestDetails =>
       widget.details is RequestItem ? widget.details as RequestItem : null;
 
+// --- دوال جلب البيانات الشرطية لملخص الفاتورة المالي الحالي ---
   String get lawyerName {
     if (bookingDetails != null) return bookingDetails!.lawyer.name;
     if (requestDetails != null) return requestDetails!.lawyerName;
@@ -72,6 +82,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   @override
   void dispose() {
+    // تفريغ كافة الموارد والمتحكمات وعقد التركيز فور الخروج لحماية الذاكرة والأمان المالي للمشروع
     cardNumberController.dispose();
     expiryController.dispose();
     cvvController.dispose();
@@ -89,6 +100,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   String get _formattedCardNumber {
+    // دالة (Getter) لتنسيق أرقام البطاقة مع الفراغات لعرضها بشكل حي فوق كرت الفيزا التفاعلي
     final digits = cardNumberController.text.replaceAll(' ', '');
     final chunks = <String>[];
 
@@ -100,6 +112,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     return chunks.join(' ');
   }
 
+// شرط منطقي للتأكد من اكتمال وصحة صياغة كافة حقول البطاقة قبل تفعيل زر المتابعة
   bool get canContinue {
     return cardNumberController.text.replaceAll(' ', '').length == 16 &&
         expiryController.text.trim().length == 5 &&
@@ -107,9 +120,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
         cardNameController.text.trim().isNotEmpty;
   }
 
+// فحص اكتمال إدخال الـ 6 أرقام الخاصة بالتحقق للـ OTP
   bool get otpComplete =>
       otpControllers.every((item) => item.text.trim().isNotEmpty);
 
+// دالة إدارة تراجع الخطوات عند النقر على سهم العودة العلوي
   void _handleBack() {
     if (step > 1 && step < 3) {
       setState(() => step = step - 1);
@@ -119,8 +134,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
     Navigator.maybePop(context);
   }
 
+// دالة المعالجة الفورية لرقم البطاقة؛ تحظر الحروف وتحقن مسافة تنظيمية كل 4 أرقام آلياً
   void _onCardNumberChanged(String value) {
-    final digits = value.replaceAll(RegExp(r'\D'), '');
+    final digits =
+        value.replaceAll(RegExp(r'\D'), ''); // فلترة النص من أي حقول غير رقمية
     final limited = digits.length > 16 ? digits.substring(0, 16) : digits;
 
     final chunks = <String>[];
@@ -133,12 +150,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
     cardNumberController.value = TextEditingValue(
       text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
+      selection: TextSelection.collapsed(
+          offset: formatted.length), // الحفاظ على بقاء مؤشر الكتابة في النهاية
     );
 
     setState(() {});
   }
 
+// دالة المعالجة الفورية لتاريخ الانتهاء؛ تحقن خط السلاش آلياً بعد كتابة الشّهر
   void _onExpiryChanged(String value) {
     final digits = value.replaceAll(RegExp(r'\D'), '');
     String formatted = digits;
@@ -163,6 +182,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     setState(() {});
   }
 
+// دالة المعالجة التلقائية لخانات الـ OTP؛ تنقل التركيز للمربع التالي آلياً فور الكتابة وللخلف فور الحذف
   void _onOtpChanged(int index, String value) {
     final digit = value.replaceAll(RegExp(r'\D'), '');
 
@@ -170,7 +190,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       otpControllers[index].clear();
 
       if (index > 0) {
-        otpFocusNodes[index - 1].requestFocus();
+        otpFocusNodes[index - 1].requestFocus(); // إرجاع المؤشر للخلف عند الحذف
       }
 
       setState(() {});
@@ -185,14 +205,17 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
 
     if (index < otpControllers.length - 1) {
-      otpFocusNodes[index + 1].requestFocus();
+      otpFocusNodes[index + 1]
+          .requestFocus(); // تقديم المؤشر للامام فور الكتابة
     } else {
-      otpFocusNodes[index].unfocus();
+      otpFocusNodes[index]
+          .unfocus(); // إغلاق الكيبورد عند اكتمال الخانة الأخيرة
     }
 
     setState(() {});
   }
 
+// الانتقال الآمن للخطوة الثانية وتفعيل مؤشر التركيز على حقل الـ OTP الأول
   Future<void> _continueToOtp() async {
     if (!canContinue) return;
 
@@ -205,25 +228,29 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
+// الدالة الأساسية لمعالجة وحفظ عملية الدفع الناجحة في جدول المدفوعات بالفايربيس
   Future<void> _processPayment() async {
     setState(() => _isProcessing = true);
 
     try {
-      await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(const Duration(
+          seconds: 2)); // محاكاة عملية فحص البنك في الخلفية لثانيتين
 
-      // حفظ سجل دفع حقيقي في الفايربيس
+      // 1. حقن وتوثيق سجل مالي حقيقي ومفصل داخل مجموعة المدفوعات (Payments) بالـ Firestore
       await FirebaseFirestore.instance.collection('Payments').add({
         'lawyerName': lawyerName,
         'amount': bookingPrice,
         'consultationType': consultationType,
-        'date': FieldValue.serverTimestamp(),
+        'date': FieldValue
+            .serverTimestamp(), // توقيت الخادم المعتمد والنزيه لمنع التلاعب
         'status': 'success',
         'method': _selectedMethod,
-        'userId': FirebaseAuth.instance.currentUser?.uid,
+        'userId': FirebaseAuth.instance.currentUser
+            ?.uid, // ربط السجل بالمعرف الفرعي الفريد للعميل الحالي
       });
 
       if (!mounted) return;
-      _showSuccessDialog();
+      _showSuccessDialog(); // فتح واجهة النجاح النهائية والأرشفة
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -241,11 +268,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
       appBar: AppHeader(
         title: 'الدفع',
         leadingIcon: Icons.arrow_back,
-        onLeadingPressed: step == 3 ? null : _handleBack,
+        onLeadingPressed: step == 3
+            ? null
+            : _handleBack, // حظر الرجوع للخلف إذا اكتملت العملية بنجاح لتأمين البيانات
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // عرض كرت ملخص الفاتورة والبيانات طالما أن العملية لم تنتهي بنجاح بعد
           if (step != 3) ...[
             SectionCard(
               child: Column(
@@ -277,8 +307,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
             ),
             const SizedBox(height: 20),
           ],
-          _ProgressStrip(step: step),
+          _ProgressStrip(step: step), // حقن شريط الخطوات العلوي التفاعلي
           const SizedBox(height: 20),
+          // التبديل والتحويل الشرطي بين واجهات الخطوات الثلاثة بناءً على قيمة المتغير step
           if (step == 1) _buildCardStep(),
           if (step == 2) _buildOtpStep(),
           if (step == 3) _buildSuccessStep(),
@@ -287,6 +318,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
+// --- بناء الخطوة الأولى: إدخال وفحص بيانات كرت البنك ---
   Widget _buildCardStep() {
     return SectionCard(
       child: Column(
@@ -308,7 +340,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
           const SizedBox(height: 18),
           _FieldLabel(text: 'رقم البطاقة'),
           Directionality(
-            textDirection: TextDirection.ltr,
+            textDirection: TextDirection
+                .ltr, // إجبار أرقام البطاقة على القراءة والترتيب من اليسار لليمين LTR
             child: TextField(
               controller: cardNumberController,
               keyboardType: TextInputType.number,
@@ -319,7 +352,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 fontWeight: FontWeight.w700,
               ),
               inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9 ]')),
+                FilteringTextInputFormatter.allow(
+                    RegExp(r'[0-9 ]')), // حظر إدخال أي رموز أو حروف برمجياً
               ],
               onChanged: _onCardNumberChanged,
               decoration: const InputDecoration(
@@ -365,7 +399,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         controller: cvvController,
                         keyboardType: TextInputType.number,
                         textAlign: TextAlign.center,
-                        obscureText: true,
+                        obscureText:
+                            true, // إخفاء أرقام رمز الأمان الثلاثية لحماية خصوصية العميل
                         maxLength: 3,
                         onChanged: (_) => setState(() {}),
                         inputFormatters: [
@@ -393,19 +428,23 @@ class _PaymentScreenState extends State<PaymentScreen> {
           ),
           const SizedBox(height: 18),
           _PaymentBrandCard(
+            // حقل كرت المعاينة التفاعلي والحي للبطاقة
             number: _formattedCardNumber,
             holder: cardNameController.text,
           ),
           const SizedBox(height: 20),
           PrimaryButton(
             text: 'المتابعة',
-            onPressed: canContinue ? _continueToOtp : null,
+            onPressed: canContinue
+                ? _continueToOtp
+                : null, // يتعطل الزر تلقائياً إذا لم تكتمل شروط الصياغة لسلامة المعالجة
           ),
         ],
       ),
     );
   }
 
+// --- بناء الخطوة الثانية: واجهة التحقق الآمن عبر رمز الـ OTP ---
   Widget _buildOtpStep() {
     return SectionCard(
       child: Column(
@@ -455,9 +494,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
           Directionality(
             textDirection: TextDirection.ltr,
             child: Center(
-              // 👈 إضافة سنتر لضمان التوسيط
+              // إضافة سنتر لضمان التوسيط
               child: FittedBox(
-                // 👈 الحل السحري: يمنع الـ Overflow ويصغر الخانات لتناسب الشاشة
+                // الحل الهندسي السحري الذي يمنع الـ Overflow ويصغر الخانات تلقائياً لتناسب أبعاد المتصفح والشاشات الصغيرة
                 fit: BoxFit.scaleDown,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -467,11 +506,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: SizedBox(
                         width:
-                            45, // 💡 تم تصغير العرض قليلاً من 48 إلى 45 لزيادة السلاسة
+                            45, //  تم تصغير العرض قليلاً من 48 إلى 45 لزيادة السلاسة
                         height: 58,
                         child: TextField(
                           controller: otpControllers[index],
-                          focusNode: otpFocusNodes[index],
+                          focusNode: otpFocusNodes[
+                              index], // ربط عقد التحكم بالتركيز والانتقال الآلي
                           keyboardType: TextInputType.number,
                           textInputAction: index == otpControllers.length - 1
                               ? TextInputAction.done
@@ -539,6 +579,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
+// --- بناء الخطوة الثالثة والأخيرة: شاشة النجاح المالي التامة والمؤقت الآلي ---
   Widget _buildSuccessStep() {
     return SectionCard(
       child: Column(
@@ -591,13 +632,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
+// تفعيل واجهة النجاح المالي وبدء العد التنازلي للتحويل الجذري الآمن لوحة التحكم
   void _showSuccessDialog() {
     setState(() {
       _isProcessing = false;
       step = 3; // تفعيل واجهة النجاح
     });
 
-    // العودة التلقائية للرئيسية (لوحة التحكم) بعد 3 ثواني
+    // تحويل آلي وجذري للمستخدم بعد 3 ثواني مع مسح وحظر سجل العودة لشاشة الدفع (pushAndRemoveUntil) لسلامة العمليات المالية
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
@@ -609,6 +651,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 }
 
+/// ويدجت من نوع StatelessWidget مخصصة لرسم شريط مؤشر التقدم الأفقي بأعلى شاشة الدفع.
+/// تتلقى الخطوة الحالية [step]، وتقوم بتوليد خطوط المؤشر ديناميكياً باستخدام [List.generate]،
+/// وتتحكم بلون الخط (نشط بلون التطبيق الأساسي، أو خامل) لتعريف العميل بمرحلته الحالية في الدفع.
 class _ProgressStrip extends StatelessWidget {
   final int step;
 
@@ -620,7 +665,8 @@ class _ProgressStrip extends StatelessWidget {
 
     return Row(
       children: List.generate(labels.length, (index) {
-        final active = step >= index + 1;
+        final active =
+            step >= index + 1; // فحص ما إذا كانت المحطة الحالية نشطة أم لا
 
         return Expanded(
           child: Row(
@@ -631,12 +677,16 @@ class _ProgressStrip extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: active
                         ? AppColors.primary
-                        : AppColors.secondary.withValues(alpha: 0.55),
+                        : AppColors.secondary.withValues(
+                            alpha: 0.55), // تلوين الخط بناءً على حالة النشاط
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
               ),
-              if (index < labels.length - 1) const SizedBox(width: 8),
+              if (index < labels.length - 1)
+                const SizedBox(
+                    width:
+                        8), // إضافة مسافة فاصلة بين الخطوط ما عدا العنصر الأخير
             ],
           ),
         );
@@ -645,6 +695,9 @@ class _ProgressStrip extends StatelessWidget {
   }
 }
 
+/// ويدجت تفاعلية (Live Preview Card) تحاكي المظهر البصري لبطاقة الائتمان الحقيقية (Visa/MasterCard).
+/// فائدتها تحسين تجربة المستخدم (UX UX)؛ حيث تستقبل رقم البطاقة [number] واسم حاملها [holder]،
+/// وتعرضهم بشكل حي فوري فوق كرت مميز ذو تدرج لوني [LinearGradient] وظلال احترافية
 class _PaymentBrandCard extends StatelessWidget {
   final String number;
   final String holder;
@@ -660,7 +713,10 @@ class _PaymentBrandCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.primary, Color(0xCC123458)],
+          colors: [
+            AppColors.primary,
+            Color(0xCC123458)
+          ], // تدرج لوني فخم متناسق مع هوية "محاميك" البصرية
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
@@ -691,9 +747,12 @@ class _PaymentBrandCard extends StatelessWidget {
           ),
           const SizedBox(height: 28),
           Directionality(
-            textDirection: TextDirection.ltr,
+            textDirection: TextDirection
+                .ltr, // إجبار أرقام الفيزا على الترتيب من اليسار لليمين دائماً لسلامة المظهر
             child: Text(
-              number.isEmpty ? '1234 5678 9012 3456' : number,
+              number.isEmpty
+                  ? '1234 5678 9012 3456'
+                  : number, // عرض رقم افتراضي تلميحي إذا كان الحقل فارغاً
               style: const TextStyle(
                 color: AppColors.background,
                 fontSize: 20,
@@ -704,7 +763,9 @@ class _PaymentBrandCard extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Text(
-            holder.isEmpty ? 'اسم حامل البطاقة' : holder,
+            holder.isEmpty
+                ? 'اسم حامل البطاقة'
+                : holder, // عرض نص افتراضي إذا لم يكتب المستخدم اسمه بعد
             style: const TextStyle(
               color: AppColors.background,
               fontWeight: FontWeight.w600,
@@ -716,6 +777,8 @@ class _PaymentBrandCard extends StatelessWidget {
   }
 }
 
+/// مكون بصري مصغر وموحد (Reusable Widget) مخصص لرسم وتنسيق نصوص العناوين فوق حقول الإدخال.
+/// يدعم خاصية المحاذاة الشرطية [centered] لتوسيط النص (مثل واجهة الـ OTP) أو محاذاته لليمين تلقائياً.
 class _FieldLabel extends StatelessWidget {
   final String text;
   final bool centered;
@@ -730,7 +793,9 @@ class _FieldLabel extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Align(
-        alignment: centered ? Alignment.center : Alignment.centerRight,
+        alignment: centered
+            ? Alignment.center
+            : Alignment.centerRight, // تحديد اتجاه النص شرطياً
         child: Text(
           text,
           style: const TextStyle(fontWeight: FontWeight.w700),
@@ -740,6 +805,9 @@ class _FieldLabel extends StatelessWidget {
   }
 }
 
+/// ويدجت مخصصة لتنسيق وعرض أسطر "ملخص الفاتورة المالي" بشكل مرن ومنظم.
+/// تفصل التسمية [label] عن القيمة [value] باستخدام [Expanded]، وتدعم متغير [highlight]
+/// لتكبير الخط وتلوينه بلون التطبيق الأساسي عند عرض المجموع النهائي ليلفت عين المستخدم.
 class _SummaryRow extends StatelessWidget {
   final String label;
   final String value;
@@ -780,6 +848,9 @@ class _SummaryRow extends StatelessWidget {
   }
 }
 
+/// بطاقة بصرية مستقلة تُستخدم في واجهة النجاح الأخيرة (Step 3).
+/// فائدتها عرض قنوات تأكيد الحجز للمستخدم (مثل البريد، SMS)، داخل حاوية محددة بالحواف
+/// ومزودة بأيقونة صح خضراء ثابتة [Icons.check_circle] لتوحيد وتجميل شكل اللائحة النهائية.
 class _NotifyRow extends StatelessWidget {
   final String title;
 
@@ -799,7 +870,7 @@ class _NotifyRow extends StatelessWidget {
         children: [
           const Icon(
             Icons.check_circle,
-            color: AppColors.success,
+            color: AppColors.success, // أيقونة النجاح الخضراء الموحدة بالنظام
             size: 20,
           ),
           const SizedBox(width: 10),

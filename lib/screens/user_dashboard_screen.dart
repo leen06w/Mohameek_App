@@ -9,9 +9,11 @@ import '../models/app_user.dart';
 import '../models/lawyer.dart';
 import '../models/request_item.dart';
 import '../services/auth_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // مكتبة الفايربيس لإدارة الأرشفة وقنوات البث الحي المستمر Streams
+import 'package:firebase_auth/firebase_auth.dart'; // مكتبة التحقق من هوية وحساب العميل الحالي النشط
 
+/// كلاس من نوع StatefulWidget يمثل اللوحة الرئيسية والمركزية للمستخدم / الطالب.
+/// يتولى الكلاس مزامنة بيانات حساب الطالب، وإدارة لوحة الاختصارات الشبكية السريعة، وعرض المحامين والقضايا الحية وبث المواعيد.
 class UserDashboardScreen extends StatefulWidget {
   const UserDashboardScreen({super.key});
 
@@ -19,20 +21,25 @@ class UserDashboardScreen extends StatefulWidget {
   State<UserDashboardScreen> createState() => _UserDashboardScreenState();
 }
 
+/// كلاس الحالة الديناميكي المسؤول عن معالجة تدفق قنوات البث الحية (Streams)، وفتح النوافذ المنبثقة الجانبية والسفلية، وإدارة المحادثات.
 class _UserDashboardScreenState extends State<UserDashboardScreen> {
-  final AuthService _authService = AuthService();
-  AppUser? user;
+  final AuthService _authService =
+      AuthService(); // استدعاء خدمة الصلاحيات والمصادقة
+  AppUser? user; // كائن من موديل AppUser لحفظ بيانات الطالب النشط حالياً
 
-  late List<_UserNotificationItem> _notifications;
-  int _unreadNotificationsCount = 0;
+  late List<_UserNotificationItem>
+      _notifications; // مصفوفة لتخزين قائمة الإشعارات
+  int _unreadNotificationsCount =
+      0; // عداد رقمي لحساب الإشعارات غير المقروءة باللون الأحمر
 
   @override
   void initState() {
     super.initState();
-    _seedNotifications();
-    _loadUser();
+    _seedNotifications(); // تهيئة قائمة الإشعارات الافتراضية
+    _loadUser(); // بدء مزامنة وجلب بيانات الطالب المحدثة من الفايربيس
   }
 
+// حقل عينات إشعارات وهمية لمحاكاة حركة النظام الحية داخل التطبيق
   void _seedNotifications() {
     _notifications = [
       const _UserNotificationItem(
@@ -69,17 +76,21 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
       ),
     ];
 
-    _unreadNotificationsCount =
-        _notifications.where((item) => item.isUnread).length;
+    _unreadNotificationsCount = _notifications
+        .where((item) => item.isUnread)
+        .length; // حساب عدد غير المقروء ديناميكياً
   }
 
+  /// دالة المزامنة الثنائية غير المتزامنة؛ تقرأ جلسة المستخدم ثم تسحب بياناته الحية (مثل الاسم الحقيقي المحدث) من الـ Firestore
   Future<void> _loadUser() async {
     // 1. جلب المستخدم من الجلسة الحالية
-    final u = await _authService.getCurrentUser();
+    final u =
+        await _authService.getCurrentUser(); // 1. فحص الجلسة الحالية الآمنة
     if (u == null) return;
 
     // 2. جلب البيانات المحدثة (مثل الاسم الحقيقي) من Firestore
     try {
+      // 2. سحب وثيقة العميل المحدثة من مجموعة المستخدمين بـ قاعدة البيانات
       final doc =
           await FirebaseFirestore.instance.collection('Users').doc(u.id).get();
 
@@ -96,20 +107,24 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
           );
         });
       } else if (mounted) {
-        setState(() => user = u);
+        setState(() => user =
+            u); // كخطة بديلة نعتمد بيانات الجلسة المحلية إذا لم تتوفر شبكة
       }
     } catch (e) {
       if (mounted) setState(() => user = u);
     }
   }
 
+// فتح ورقة الإشعارات السفلية المنبثقة وتصفير عداد غير المقروء محلياً فور الفتح لراحة العميل
   void _openNotificationsSheet() {
     final hadUnread = _notifications.any((item) => item.isUnread);
 
     if (hadUnread) {
       setState(() {
         _notifications = _notifications
-            .map((item) => item.copyWith(isUnread: false))
+            .map((item) => item.copyWith(
+                isUnread:
+                    false)) // تحويل كافة العناصر لمقروءة محلياً عبر copyWith
             .toList();
         _unreadNotificationsCount = 0;
       });
@@ -167,6 +182,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
     );
   }
 
+// فتح لوحة "اسأل محامي" السفلية؛ وتعمل بـ StreamBuilder تفاعلي يسحب قائمة المحامين المعتمدين والنشطين من السيرفر فوراً
   void _openAskLawyerSheet() {
     showModalBottomSheet<void>(
         context: context,
@@ -181,14 +197,16 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
           return StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('Users')
-                .where('role', isEqualTo: 'lawyer')
+                .where('role',
+                    isEqualTo:
+                        'lawyer') // تصفية وضمان جلب الخبراء القانونيين فقط من جدول النظام
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              // تحويل الوثائق (Docs) إلى قائمة كائنات محامين
+              // تحويل وثائق الفايربيس المسترجعة إلى قائمة كائنات محامين حقيقيين
               final lawyers = snapshot.data?.docs.map((doc) {
                     return Lawyer.fromMap(doc.data() as Map<String, dynamic>);
                   }).toList() ??
@@ -240,6 +258,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
         });
   }
 
+// فتح شاشة غرفة المحادثة المباشرة الممررة وتزويدها باسم الطالب الحالي لتوثيق السجل
   void _openLawyerChat(Lawyer lawyer) {
     Navigator.push(
       context,
@@ -252,12 +271,13 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
     );
   }
 
+// فتح شيت "مواعيدي"؛ وبث طلبات وحالات الاستشارات والقرارات الصادرة من المحامي للطالب لحظة بلحظة عبر الـ Stream
   void _openAppointmentsSheet() {
     showModalBottomSheet(
-      // 👈 هذا هو السطر الناقص اللي يخلي الورقة تظهر
       context: context,
-      isScrollControlled: true, // عشان الورقة تاخذ راحتها في الطول
-      backgroundColor: Colors.transparent, // عشان تطلع بزوايا دائرية لو حابة
+      isScrollControlled:
+          true, // تمديد محاذاة اللوحة لتأخذ أبعاداً انسيابية ومريحة في العرض
+      backgroundColor: Colors.transparent,
       builder: (context) {
         return Container(
           decoration: const BoxDecoration(
@@ -267,9 +287,9 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('Cases')
-                // 👈 تأكدي من استخدام uid بدلاً من id
                 .where('userId',
-                    isEqualTo: FirebaseAuth.instance.currentUser?.uid)
+                    isEqualTo: FirebaseAuth.instance.currentUser
+                        ?.uid) // جلب الطلبات المطابقة للـ uid الفريد للطالب الحالي
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -294,7 +314,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                       ),
                       const SizedBox(height: 14),
 
-                      // 💡 إذا كانت القائمة فارغة تظهر هذه الرسالة
+                      //  إذا كانت القائمة فارغة تظهر هذه الرسالة
                       if (docs.isEmpty)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 40),
@@ -328,7 +348,8 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                                   docs[index].data() as Map<String, dynamic>;
                               // تحويل البيانات لـ Item وعرضها
                               return _AppointmentCard(
-                                request: RequestItem.fromJson(data),
+                                request: RequestItem.fromJson(
+                                    data), // تحويل مخرجات الـ Json لكائن الموديل ورسم بطاقته الملونة
                               );
                             },
                           ),
@@ -344,6 +365,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
     );
   }
 
+// فتح واجهة شاشة الدعم والمساعدة المنعزلة بالأسفل
   void _openSupportScreen() {
     Navigator.push(
       context,
@@ -355,6 +377,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // معالجة صياغة اسم الترحيب وتجنب الفراغات العشوائية بالنظام
     final displayName =
         (user?.name.trim().isNotEmpty ?? false) ? user!.name.trim() : 'لين';
 
@@ -366,7 +389,8 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
         centerTitle: true,
         leading: Builder(
           builder: (context) => IconButton(
-            onPressed: () => Scaffold.of(context).openDrawer(),
+            onPressed: () =>
+                Scaffold.of(context).openDrawer(), //فتح القائمه الجانبيه
             icon: const Icon(
               Icons.menu_rounded,
               color: Colors.white,
@@ -418,7 +442,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'مرحباً $displayName 👋', // هذا السطر سيستخدم الاسم اللي حددناه فوق
+                  'مرحباً $displayName 👋',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 26,
@@ -505,6 +529,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
             ],
           ),
           const SizedBox(height: 8),
+          // قراءة وعرض أول 3 عناصر من مصفوفة المحامين المتميزين
           ...MockData.lawyers.take(3).map(
                 (lawyer) => Padding(
                   padding: const EdgeInsets.only(bottom: 16),
@@ -517,11 +542,13 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
+          // الـ StreamBuilder الحصري والموجه لمراقبة وتحديث قضايا الطالب الحالي المسجلة فقط بالفايربيس
           StreamBuilder<QuerySnapshot>(
-            // بيراقب القضايا الخاصة بكِ فقط في الفايربيس
             stream: FirebaseFirestore.instance
                 .collection('Cases')
-                .where('studentId', isEqualTo: user?.id)
+                .where('studentId',
+                    isEqualTo:
+                        user?.id) // التصفية لضمان الخصوصية وسرية وثائق الطلاب
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -563,7 +590,8 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                               'المحامي: ${data['lawyerName'] ?? 'لم يحدد بعد'}'),
                           const SizedBox(height: 10),
                           LinearProgressIndicator(
-                            value: 0.5, // قيمة ثابتة مؤقتاً
+                            value:
+                                0.5, // تقدم فرضي لمؤشر شريط التقدم محاكاة للعميل
                             borderRadius: BorderRadius.circular(999),
                             backgroundColor: AppColors.secondary,
                             color: AppColors.primary,
@@ -581,7 +609,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
     );
   }
 
-  // تأكدي أن هذا الكود يقع قبل القوس الأخير } في ملف الـ State
+  /// دالة معالجة وتوليد ألوان كبسولات الحالات (Badges) بشكل منسق مع التفسير البصري (مكتملة، قيد المراجعة، انتظار)
   Widget _buildStatusBadge(String status) {
     Color bgColor;
     Color textColor;
@@ -617,8 +645,11 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
       ),
     );
   }
-} // <--- هذا القوس هو نهاية كلاس _UserDashboardScreenState
+}
 
+/// ويدجت من نوع StatelessWidget تمثل زر جرس الإشعارات العلوي المخصص لشريط التطبيق (AppBar).
+/// تستخدم الـ [Stack] لتركيب طبقتين: أيقونة الجرس الأساسية بالخلفية، وفوقها دائرة التنبيه الحمراء الرقمية.
+/// يتم التحكم بظهور الدائرة شرطياً (`if (count > 0)`) لتظهر فقط عند ورود إشعارات جديدة غير مقروءة للعميل.
 class _NotificationBellButton extends StatelessWidget {
   final int count;
   final VoidCallback onTap;
@@ -630,7 +661,9 @@ class _NotificationBellButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayCount = count > 99 ? '99+' : '$count';
+    final displayCount = count > 99
+        ? '99+'
+        : '$count'; // تحويل الأعداد الكبيرة لصيغة 99+ لمنع تشويه التصميم
 
     return Material(
       color: Colors.transparent,
@@ -650,7 +683,7 @@ class _NotificationBellButton extends StatelessWidget {
                   size: 26,
                 ),
               ),
-              if (count > 0)
+              if (count > 0) // عرض شارة التنبيه الرقمية الحمراء شرطياً
                 PositionedDirectional(
                   top: 6,
                   end: 4,
@@ -696,6 +729,9 @@ class _NotificationBellButton extends StatelessWidget {
   }
 }
 
+/// مكون مرئي ثابت يُمثّل ترويسة لوحة الإشعارات المنبثقة من الأسفل (BottomSheet).
+/// يعرض أيقونة دائرية للتنبيهات النشطة بجانبها عنوان اللوحة وعدداً ديناميكياً محدثاً محلياً
+/// يوضح للمستخدم عدد الإشعارات غير المقروءة المتبقية من إجمالي الإشعارات (`unreadCount` من أصل `totalCount`).
 class _NotificationsHeader extends StatelessWidget {
   final int unreadCount;
   final int totalCount;
@@ -747,11 +783,15 @@ class _NotificationsHeader extends StatelessWidget {
   }
 }
 
+/// بطاقة ذكية ومتحركة لتنسيق ورسم كل إشعار فردي داخل قائمة التنبيهات.
+/// تستخدم الـ [AnimatedContainer] لعمل تأثير انتقال ناعم في لون الخلفية والحدود
+/// عندما تتغير حالة الإشعار من غير مقروء (خلفية زرقاء خفيفة جداً) إلى مقروء (خلفية بيضاء نقية).
+/// كما تحتوي على دوال مخصصة لتوزيع الألوان والخلفيات آلياً بناءً على نوع التصنيف.
 class _NotificationCard extends StatelessWidget {
   final _UserNotificationItem item;
 
   const _NotificationCard({required this.item});
-
+// تحديد خلفية أيقونة الإشعار حسب نوعه (رسالة، طلب، موعد، نظام)
   Color _iconBackground() {
     switch (item.type) {
       case _NotificationType.message:
@@ -765,6 +805,7 @@ class _NotificationCard extends StatelessWidget {
     }
   }
 
+// تحديد لون الأيقونة الصريح لضمان التباين البصري والـ Accessibility
   Color _iconColor() {
     switch (item.type) {
       case _NotificationType.message:
@@ -781,10 +822,13 @@ class _NotificationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
+      duration: const Duration(
+          milliseconds: 180), // سرعة الأنيميشن اللطيف عند القراءة
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: item.isUnread ? const Color(0xFFF8FBFF) : Colors.white,
+        color: item.isUnread
+            ? const Color(0xFFF8FBFF)
+            : Colors.white, // تمييز الإشعار غير المقروء بخلفية مخصصة
         border: Border.all(
           color: item.isUnread ? const Color(0xFFD6E8FF) : AppColors.border,
         ),
@@ -863,6 +907,9 @@ class _NotificationCard extends StatelessWidget {
   }
 }
 
+/// ويدجت برمجية تمثل "القائمة الجانبية الفخمة" المخصصة لحساب الطلاب والمستخدمين.
+/// تعرض واجهة علوية دائرية لملف الحساب الشخصي وتستعرض بريده واسمه الحقيقي القادم من السيرفر.
+/// كما تنظم روابط ومسارات التنقل الداخلية للبرنامج وتأمين دالة تسجيل الخروج وتطهير الجلسات تماماً.
 class _UserDrawer extends StatelessWidget {
   final AppUser? user;
   final VoidCallback onOpenSupport;
@@ -932,11 +979,12 @@ class _UserDrawer extends StatelessWidget {
                 icon: Icons.help_outline,
                 title: 'الدعم والمساعدة',
                 onTap: () {
-                  Navigator.pop(context);
-                  onOpenSupport();
+                  Navigator.pop(context); // إغلاق الدروير أولاً لراحة الـ UX
+                  onOpenSupport(); // فتح نافذة الدعم
                 },
               ),
               const Spacer(),
+              // كرت زر تسجيل الخروج التقني الذي يتلف الـ Route History تماماً أمنياً
               ListTile(
                 leading: const Icon(Icons.logout, color: Colors.red),
                 title: const Text(
@@ -944,12 +992,14 @@ class _UserDrawer extends StatelessWidget {
                   style: TextStyle(color: Colors.red),
                 ),
                 onTap: () async {
-                  await AuthService().logout();
+                  await AuthService()
+                      .logout(); // استدعاء خدمة تدمير الجلسة بـ الفايربيس
                   if (context.mounted) {
                     Navigator.pushNamedAndRemoveUntil(
                       context,
                       AppRoutes.login,
-                      (_) => false,
+                      (_) =>
+                          false, // حذف وحجب شاشات الحساب السابقة نهائياً من ذاكرة الجوال
                     );
                   }
                 },
@@ -962,6 +1012,8 @@ class _UserDrawer extends StatelessWidget {
   }
 }
 
+/// عنصر قائمة موحد وقابل لإعادة الاستخدام (Reusable Widget) لبناء أسطر خيارات القائمة الجانبية.
+/// يضمن ثبات الأبعاد، الأيقونات، والخطوط بجميع أسطر الـ Drawer مجتمعة لتفادي تكرار الأكواد البصرية.
 class _DrawerItem extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -983,6 +1035,9 @@ class _DrawerItem extends StatelessWidget {
   }
 }
 
+/// كرت برمي من نوع StatelessWidget لبناء مربعات "الاختصارات الشبكية السريعة" في لوحة التحكم.
+/// مغلف بـ [InkWell] لدعم تأثير النقر الدائري (Ripple Effect)، ويستقبل نص العنوان [title]
+/// ويدعم ميزة ذكية لاستقبال أيقونة ثابتة [icon] أو عنصر مخصص بالكامل [iconWidget] (مثل أيقونة الـ AI المتحركة).
 class _QuickAction extends StatelessWidget {
   final IconData? icon;
   final Widget? iconWidget;
@@ -998,6 +1053,7 @@ class _QuickAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // التحقق الشرطي لحقن الودجت المخصصة أو الأيقونة الافتراضية الممررة
     final Widget finalIconWidget = iconWidget ??
         Container(
           width: 52,
@@ -1030,6 +1086,9 @@ class _QuickAction extends StatelessWidget {
   }
 }
 
+/// بطاقة عرض مخصصة لقائمة "المحامون المميزون" في لوحة تحكم الطالب.
+/// تقوم بقراءة خصائص كائن المحامي [lawyer] وعرض نسب تقييمه الذهبية، تخصصاته، أسعار الجلسات، ومدينته.
+/// وتحتوي بأسفلها على زر الحجز الفوري المباشر لنقله لرحلة جدولة المواعيد آلياً.
 class _FeaturedLawyerCard extends StatelessWidget {
   final Lawyer lawyer;
 
@@ -1072,6 +1131,7 @@ class _FeaturedLawyerCard extends StatelessWidget {
                   ],
                 ),
               ),
+              // تصميم بطاقة التقييم النجمية الذهبية الصغيرة
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -1136,7 +1196,8 @@ class _FeaturedLawyerCard extends StatelessWidget {
             onPressed: () => Navigator.pushNamed(
               context,
               AppRoutes.userBooking,
-              arguments: lawyer,
+              arguments:
+                  lawyer, // تمرير كائن المحامي المختار كـ حجة Arguments لشاشة الحجز
             ),
           ),
         ],
@@ -1145,6 +1206,8 @@ class _FeaturedLawyerCard extends StatelessWidget {
   }
 }
 
+/// ترويسة مرئية مشتركة وموحدة تم تصميمها لتنسيق الواجهات العلوية لكافة الـ BottomSheets السفلية باللوحة.
+/// تستقبل الـ [title]، الـ [subtitle]، والأيقونة المخصصة لتوحيد شكل ومظهر أوراق المواعيد والمحادثات.
 class _SheetHeader extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -1193,6 +1256,8 @@ class _SheetHeader extends StatelessWidget {
   }
 }
 
+/// بطاقة اختيار منسقة معروضة داخل قائمة "اسأل محامي".
+/// تُظهر تفاصيل سريعة لكل محامي مسجل بالسيرفر لمساعدة الطالب في اتخاذ قراره السريع ببدء شات مباشر وآمن معه.
 class _LawyerSelectionCard extends StatelessWidget {
   final Lawyer lawyer;
   final VoidCallback onTap;
@@ -1261,11 +1326,14 @@ class _LawyerSelectionCard extends StatelessWidget {
   }
 }
 
+/// بطاقة ذكية معروضة داخل لائحة المواعيد؛ تتلقى كائن بيانات طلب الاستشارة [request].
+/// ميزتها الكبرى هي معالجة وتلوين كبسولات الحالات (Badges) محلياً وتلقائياً لتعكس قرارات الـ API القادمة
+/// (مقبول ونشط باللون الأخضر، مرفوض بالأحمر، قيد التفاوض بالأصفر، بانتظار الإدارة بالأزرق).
 class _AppointmentCard extends StatelessWidget {
   final RequestItem request;
 
   const _AppointmentCard({required this.request});
-
+// تلوين نصوص الحالات لضمان جودة الرؤية الـ UI Contrast
   Color _statusBackground() {
     switch (request.status) {
       case 'accepted':
@@ -1279,6 +1347,7 @@ class _AppointmentCard extends StatelessWidget {
     }
   }
 
+// دالة لتحديد لون النص الصريح داخل الكبسولة لضمان جودة التباين البصري (UI Contrast)
   Color _statusForeground() {
     switch (request.status) {
       case 'accepted':
@@ -1292,6 +1361,7 @@ class _AppointmentCard extends StatelessWidget {
     }
   }
 
+// ترجمة وتوطين الحقول البرمجية لنصوص عربية واضحة ومفهومة للمستخدم
   String _statusLabel() {
     switch (request.status) {
       case 'accepted':
@@ -1377,6 +1447,9 @@ class _AppointmentCard extends StatelessWidget {
   }
 }
 
+/// مكون مخصص ومصغر يعتمد على الـ [RichText] و [TextSpan] لتنسيق وعرض أسطر البيانات.
+/// يقوم بفصل عنوان الحقل (مثل نوع الاستشارة:) بـ وزن عريض جداً [FontWeight.w800]،
+/// ويحقن بجانبه القيمة الحقيقية بوزن متوسط، لتظهر اللائحة بشكل هندسي منظم ومريح للعين.
 class _DialogInfoRow extends StatelessWidget {
   final String label;
   final String value;
@@ -1413,6 +1486,9 @@ class _DialogInfoRow extends StatelessWidget {
   }
 }
 
+/// كلاس من نوع StatefulWidget يمثل شاشة "غرفة المحادثة الحية والمباشرة مع المحامي".
+/// يتولى إدارة رسائل الشات محلياً، ومحاكاة استقبال ردود الأفعال التلقائية والذكية من المحامي
+/// عبر المؤقتات الزمنية [Future.delayed]، بالإضافة إلى التحكم بالانزلاق الآلي لقاع الشاشة عند المراسلة.
 class _LawyerChatScreen extends StatefulWidget {
   final Lawyer lawyer;
   final String currentUserName;
@@ -1430,16 +1506,19 @@ class _LawyerChatScreenState extends State<_LawyerChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  late final List<_ChatMessage> _messages;
+  late final List<_ChatMessage>
+      _messages; // مصفوفة حية لتخزين سجل رسائل الشات الحالية المعروضة
 
   @override
   void initState() {
     super.initState();
+    // حقن رسالة ترحيبية آلية مشروحة من المحامي المختار فور فتح غرفة الشات لكسر الجمود مع العميل
     _messages = [
       _ChatMessage(
         text:
             'مرحبًا، أنا ${widget.lawyer.name}. يسعدني مساعدتك في ${widget.lawyer.specialty}. اكتب سؤالك وسأراجع تفاصيله معك.',
-        isUser: false,
+        isUser:
+            false, // تعيين القيمة كـ false لأن مصدرها ليس المستخدم بل المحامي
         time: 'الآن',
       ),
     ];
@@ -1447,11 +1526,13 @@ class _LawyerChatScreenState extends State<_LawyerChatScreen> {
 
   @override
   void dispose() {
+    // إغلاق الكنترولرز ومستمعي التمرير فور الخروج من المحادثة لحماية ذاكرة جهاز العميل
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
+  /// دالة إرسال الرسالة: تضيف نص الطالب للمصفوفة فوراً وتولد رداً آلياً محاكياً ومؤقتاً من طرف المحامي
   void _sendMessage() {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
@@ -1464,11 +1545,11 @@ class _LawyerChatScreenState extends State<_LawyerChatScreen> {
           time: 'الآن',
         ),
       );
-      _messageController.clear();
+      _messageController.clear(); // تنظيف صندوق الكتابة فور الإرسال
     });
 
     _scrollToBottom();
-
+// محاكاة تأخير زمني لمدة 500 ملي ثانية لظهور رد المحامي الافتراضي الذكي بالخلفية
     Future.delayed(const Duration(milliseconds: 500), () {
       if (!mounted) return;
 
@@ -1477,17 +1558,19 @@ class _LawyerChatScreenState extends State<_LawyerChatScreen> {
           _ChatMessage(
             text:
                 'تم استلام رسالتك. سأراجع استفسارك بخصوص "${widget.lawyer.specialty}" وأزوّدك برد أولي مناسب. يمكنك أيضًا إرفاق المستندات أو طلب موعد لاحقًا عند الحاجة.',
-            isUser: false,
+            isUser: false, // ترسم على اليسار باللون الأبيض لأنها من المحامي
             time: 'الآن',
           ),
         );
       });
 
-      _scrollToBottom();
+      _scrollToBottom(); // إنزال الشاشة مجدداً لرؤية رد المحامي الوارد
     });
   }
 
+  /// خوارزمية التمرير التلقائي: حركة ذكية تضمن انزلاق قائمة الرسائل لآخر سطر تلقائياً فور الورود (Auto-Scroll)
   void _scrollToBottom() {
+    // استدعاء PostFrameCallback لضمان أن التمرير يحدث *بعد* رسم الرسالة الجديدة تماماً بالواجهة
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
       _scrollController.animateTo(
@@ -1602,6 +1685,7 @@ class _LawyerChatScreenState extends State<_LawyerChatScreen> {
               },
             ),
           ),
+          // شريط إدخال وإرسال الرسائل السفلي المحمي بالـ SafeArea
           Container(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
             decoration: const BoxDecoration(
@@ -1672,6 +1756,8 @@ class _LawyerChatScreenState extends State<_LawyerChatScreen> {
   }
 }
 
+/// كلاس بيانات مصغر (Data Model) يمثل هيكل وبنية "الرسالة المفردة" المتبادلة داخل الشات.
+/// يحدد الخصائص الصارمة لكل رسالة: نص الرسالة [text]، التوقيت [time]، وهيكلية الهوية [isUser] للفرز البصري.
 class _ChatMessage {
   final String text;
   final bool isUser;

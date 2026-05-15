@@ -1,10 +1,12 @@
+/// يمثل تفاصيل القضية القانونية "النشطة" أو "المكتملة".
+/// يتتبع نسبة التقدم [progress] وتاريخ آخر تحديث لعرضها في شريط التقدم بـ لوحة التحكم.
 class LegalCase {
   final String id;
   final String title;
   final String client;
   final String type;
   final String status;
-  final double progress;
+  final double progress; // نسبة الإنجاز في القضية (0-100)
   final String updatedAt;
 
   const LegalCase({

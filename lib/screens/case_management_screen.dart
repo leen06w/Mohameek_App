@@ -1,14 +1,17 @@
-import 'package:file_picker/file_picker.dart';
+import 'package:file_picker/file_picker.dart'; // مكتبة اختيار الملفات والمستندات من جهاز المستخدم
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // مكتبة الفايربيس الأساسية
-import '../services/auth_service.dart'; // عشان نعرف المستخدم الحالي (طالب أو محامي)
+import 'package:cloud_firestore/cloud_firestore.dart'; // مكتبة الفايربيس الأساسية للتعامل مع قاعدة البيانات اللحظية
 import '../core/theme/app_colors.dart';
 import '../core/widgets/app_shell.dart';
 import '../core/widgets/ui.dart';
-import '../models/legal_case.dart';
+import '../models/legal_case.dart'; // موديل البيانات المخصص لتعريف خصائص القضية القانونية
 
+/// كلاس تفاعلي من نوع StatefulWidget يدير لوحة "تتبع وسجل القضايا القانونية".
+/// يعمل بنظام الواجهة الشرطية (Conditional UI)؛ فيتكيف محتواه وصلاحياته ديناميكياً بناءً على نوع الحساب الممرر [userType]،
+/// فيمنح المحامي صلاحيات رفع المستندات وتحديث النسب، بينما يمنح الطالب لوحة مراقبة وشفافية للقراءة فقط.
 class CaseManagementScreen extends StatefulWidget {
-  final String userType;
+  final String
+      userType; // استقبال صلاحية المستخدم (طالب أم محامي) لتخصيص الواجهة بناءً عليها
 
   const CaseManagementScreen({
     super.key,
@@ -20,12 +23,12 @@ class CaseManagementScreen extends StatefulWidget {
 }
 
 class _CaseManagementScreenState extends State<CaseManagementScreen> {
-  String filter = 'الكل';
-  bool _loading = true;
-  List<LegalCase> _cases = [];
+  String filter = 'الكل'; // فلتر التصفية الافتراضي لعرض القضايا
+  bool _loading = true; // مؤشر تتبع حالة جلب البيانات من السيرفر
+  List<LegalCase> _cases = []; // قائمة لحفظ مستندات القضايا المجلوبة محلياً
 
   List<String> get filters => const ['الكل', 'نشطة', 'مكتملة'];
-
+// دالة ذكية لتصفية قائمة القضايا المعروضة بناءً على الفلتر المختار من قبل المستخدم
   List<LegalCase> get items {
     if (filter == 'الكل') return _cases;
     if (filter == 'نشطة') {
@@ -37,18 +40,18 @@ class _CaseManagementScreenState extends State<CaseManagementScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _load(); // بدء جلب القضايا من قاعدة البيانات فور تحميل الشاشة في الذاكرة
   }
 
   Future<void> _load() async {
     // جلب البيانات من المجموعة الصحيحة lawyerCases
-    final snapshot = await FirebaseFirestore.instance
-        .collection('lawyerCases') // 👈 تأكدي من الاسم تماماً كما في الفايربيس
-        .get();
+    final snapshot =
+        await FirebaseFirestore.instance.collection('lawyerCases').get();
 
     if (!mounted) return;
 
     setState(() {
+      // تحويل مستندات Firestore إلى كائنات من نوع LegalCase
       _cases = snapshot.docs.map((doc) {
         final data = doc.data();
         return LegalCase(
@@ -57,14 +60,16 @@ class _CaseManagementScreenState extends State<CaseManagementScreen> {
           client: data['client'] ?? 'عميل',
           type: 'قضية قانونية',
           status: data['status'] ?? 'نشطة',
-          progress: (data['progress'] ?? 0).toDouble(),
+          progress: (data['progress'] ?? 0)
+              .toDouble(), // التأكد من تحويل النسبة لرقم عشري
           updatedAt: data['updatedAt'] ?? 'اليوم',
         );
       }).toList();
-      _loading = false;
+      _loading = false; // إيقاف مؤشر التحميل بعد اكتمال جلب البيانات
     });
   }
 
+// دالة التعامل مع زر العودة للخلف بأمان
   void _handleBack() {
     if (Navigator.canPop(context)) {
       Navigator.pop(context);
@@ -72,6 +77,7 @@ class _CaseManagementScreenState extends State<CaseManagementScreen> {
     }
   }
 
+// إظهار نافذة منبثقة تفصيلية تستعرض معلومات القضية ونسبة الإنجاز وحالتها بالتفصيل
   Future<void> _showCaseDetails(LegalCase caseItem) async {
     Color statusBg;
     Color statusFg;
@@ -178,6 +184,7 @@ class _CaseManagementScreenState extends State<CaseManagementScreen> {
     );
   }
 
+// بناء نص الملخص وتخصيصه بناءً على نوع المستخدم الحالي (أدمن/محامٍ مقابل طالب)
   String _buildCaseSummary(LegalCase caseItem) {
     if (widget.userType == 'lawyer') {
       return 'هذه القضية من نوع "${caseItem.type}" للعميل "${caseItem.client}". '
@@ -189,12 +196,19 @@ class _CaseManagementScreenState extends State<CaseManagementScreen> {
         'آخر تحديث تم بتاريخ ${caseItem.updatedAt}. يمكنك متابعة التقدم الحالي ومراجعة التفاصيل من هذه النافذة.';
   }
 
+// دالة تصفح واختيار ملفات القضية القانونية وتهيئتها للرفع
   Future<void> _uploadDocuments(LegalCase caseItem) async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       withData: true,
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg', 'webp'],
+      allowedExtensions: [
+        'pdf',
+        'png',
+        'jpg',
+        'jpeg',
+        'webp'
+      ], // حصر الامتدادات بالملفات المعتمدة والصور
     );
 
     if (result == null || result.files.isEmpty) {
@@ -219,7 +233,7 @@ class _CaseManagementScreenState extends State<CaseManagementScreen> {
     }
 
     if (!mounted) return;
-
+// فتح نافذة حوارية تعرض المستندات المحددة قبل الرفع الفعلي لتأكيد المحامي
     await showDialog<void>(
       context: context,
       builder: (context) {
@@ -315,6 +329,7 @@ class _CaseManagementScreenState extends State<CaseManagementScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // شريط الفلاتر الدائري بالأعلى للتنقل السريع بين تصنيفات القضايا
           Wrap(
             spacing: 8,
             children: filters
@@ -332,7 +347,8 @@ class _CaseManagementScreenState extends State<CaseManagementScreen> {
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(),
+                child:
+                    CircularProgressIndicator(), // مؤشر الدوران الدائري أثناء جلب البيانات من Firestore
               ),
             )
           else if (items.isEmpty)
@@ -341,6 +357,7 @@ class _CaseManagementScreenState extends State<CaseManagementScreen> {
               message: 'لا توجد قضايا',
             )
           else
+            // تحويل مصفوفة البيانات المسترجعة لبطاقات واجهة مستخدم تفاعلية
             ...items.map(
               (caseItem) => Padding(
                 padding: const EdgeInsets.only(bottom: 14),
@@ -408,6 +425,7 @@ class _CaseManagementScreenState extends State<CaseManagementScreen> {
                               onPressed: () => _showCaseDetails(caseItem),
                             ),
                           ),
+                          // إظهار زر "رفع مستند" فقط للمحامي، وإخفائه عن العميل العادي
                           if (widget.userType == 'lawyer') ...[
                             const SizedBox(width: 10),
                             Expanded(

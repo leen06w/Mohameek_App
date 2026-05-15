@@ -7,6 +7,8 @@ import '../core/widgets/ui.dart';
 import '../models/request_item.dart';
 import '../services/requests_service.dart';
 
+/// كلاس من نوع StatefulWidget يمثل شاشة "طلباتي" المخصصة للطلاب لمتابعة وتتبع طلبات الاستشارة المرسلة للمحامين.
+/// يتولى الكلاس جلب الطلبات من السيرفر، وإدارة مؤشرات التحميل، وعرض حالات القبول والرفض، وفتح مسار بوابة الدفع المالي.
 class UserRequestsScreen extends StatefulWidget {
   const UserRequestsScreen({super.key});
 
@@ -14,8 +16,10 @@ class UserRequestsScreen extends StatefulWidget {
   State<UserRequestsScreen> createState() => _UserRequestsScreenState();
 }
 
+/// كلاس الحالة الديناميكي المسؤول عن معالجة استدعاء دالة جلب الطلبات، وتنظيم أوسمة الحالات [InfoChip]، والتحويل الآمن لبوابة الدفع.
 class _UserRequestsScreenState extends State<UserRequestsScreen> {
-  final _requestsService = RequestsService();
+  final _requestsService =
+      RequestsService(); // استدعاء ملف خدمة وإدارة سجلات الطلبات في قاعدة البيانات
 
   List<RequestItem> _items = [];
   bool _loading = true;
@@ -26,8 +30,10 @@ class _UserRequestsScreenState extends State<UserRequestsScreen> {
     _load();
   }
 
+  /// دالة غير متزامنة تتصل بالـ RequestsService لجلب قائمة الطلبات وتحديث الحالة محلياً
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(
+        () => _loading = true); // تشغيل مؤشر التحميل وتصفير الحالات السابقة
 
     final items = await _requestsService.fetchRequests();
 
@@ -39,10 +45,13 @@ class _UserRequestsScreenState extends State<UserRequestsScreen> {
     });
   }
 
+  /// دالة معالجة زر العودة العلوي الذكي؛ لضمان عدم حدوث فراغ في سجل التصفح
   void _handleBack() {
     if (Navigator.canPop(context)) {
-      Navigator.pop(context);
+      Navigator.pop(
+          context); // الرجوع للشاشة السابقة إذا تم فتحها من نظام الـ Stacks
     } else {
+      // كخيار أمان أخير، إذا فتحت الشاشة بشكل مستقل، يتم تصفير المسارات ونقل الطالب آلياً للوحة التحكم الرئيسية
       Navigator.pushNamedAndRemoveUntil(
         context,
         AppRoutes.userDashboard,
@@ -51,6 +60,7 @@ class _UserRequestsScreenState extends State<UserRequestsScreen> {
     }
   }
 
+  /// فتح اللوحة السفلية المنبثقة لاستعراض التفاصيل الكاملة للمشكلة القانونية
   void _openDetails(RequestItem request) {
     showModalBottomSheet<void>(
       context: context,
@@ -60,6 +70,7 @@ class _UserRequestsScreenState extends State<UserRequestsScreen> {
     );
   }
 
+  /// دالة التوجيه المالي: تنقل الطالب فوراً لبوابة الدفع الآمنة وتمرر كائن الطلب [request] كـ حجة Arguments بالمسار
   void _goToPayment(RequestItem request) {
     Navigator.pushNamed(
       context,
@@ -71,7 +82,8 @@ class _UserRequestsScreenState extends State<UserRequestsScreen> {
   @override
   Widget build(BuildContext context) {
     return AppShell(
-      scrollable: false,
+      scrollable:
+          false, // تعطيل السكرول الخارجي للـ AppShell للاعتماد على سكرول الـ ListView الداخلي لضمان ثبات الواجهة
       padding: EdgeInsets.zero,
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -91,7 +103,8 @@ class _UserRequestsScreenState extends State<UserRequestsScreen> {
         ),
       ),
       child: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh:
+            _load, // ربط سحب الشاشة للأسفل (Pull-to-Refresh) بدالة تحديث البيانات اللحظية
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
@@ -104,6 +117,7 @@ class _UserRequestsScreenState extends State<UserRequestsScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            // --- المعالجة الشرطية المتقدمة لواجهة المستخدم (Conditional UI) ---
             if (_loading)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 32),
@@ -156,6 +170,7 @@ class _UserRequestsScreenState extends State<UserRequestsScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
+                        // حاوية كرت ملخص تفاصيل نوع القضية والمواعيد المطلوب جدولتها
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -187,6 +202,7 @@ class _UserRequestsScreenState extends State<UserRequestsScreen> {
                             ],
                           ),
                         ),
+                        // بطاقة عرض الملاحظات التفاوضية أو التعليمات المرسلة من المحامي للطالب (تظهر شرطياً عند وجودها)
                         if (request.negotiationNote != null &&
                             request.negotiationNote!.trim().isNotEmpty) ...[
                           const SizedBox(height: 12),
@@ -207,6 +223,7 @@ class _UserRequestsScreenState extends State<UserRequestsScreen> {
                             ),
                           ),
                         ],
+                        // بطاقة عرض مسببات رفض الطلب الصريحة لحفظ حق الشفافية للطالب (تظهر شرطياً فقط عند الرفض)
                         if (request.rejectionReason != null &&
                             request.rejectionReason!.trim().isNotEmpty) ...[
                           const SizedBox(height: 12),
@@ -249,6 +266,7 @@ class _UserRequestsScreenState extends State<UserRequestsScreen> {
                                 onPressed: () => _openDetails(request),
                               ),
                             ),
+                            // ميزة أمان منطقية صارمة: حظر إظهار أزرار الدفع الإلكتروني إلا إذا كان الطلب مقبولاً أو قيد التفاوض النشط
                             if (request.status == 'accepted' ||
                                 request.status == 'negotiating') ...[
                               const SizedBox(width: 10),
@@ -272,6 +290,7 @@ class _UserRequestsScreenState extends State<UserRequestsScreen> {
     );
   }
 
+  /// دالة إدارة وتوليد كبسولات وأوسمة الحالات (Status Chips)؛ تقوم بفرز الحالات برمجياً وتلوينها بصرياً وتزويدها بالأيقونة الملائمة
   Widget _statusChip(String status) {
     switch (status) {
       case 'pending':
@@ -307,6 +326,7 @@ class _UserRequestsScreenState extends State<UserRequestsScreen> {
     }
   }
 
+  /// سطر بناء ملخص الحقل المصغر؛ يفصل التسمية عن القيمة بمحاذاة مرنة وقابلة لإعادة الاستخدام داخل الكرت
   Widget _miniRow(String label, String value, {bool highlight = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -335,11 +355,14 @@ class _UserRequestsScreenState extends State<UserRequestsScreen> {
   }
 }
 
+/// كلاس من نوع StatelessWidget يمثل لوحة المراجعة المنبثقة من الأسفل لاستعراض تفاصيل مشكلة الطالب القانونية كاملة.
+/// يعتمد عليها هندسياً لتخفيف البيانات وضغط الذاكرة الرسومية عن الكروت الرئيسية، وعرض الحقول التفصيلية بوضوح تام للعميل.
 class _RequestDetailsSheet extends StatelessWidget {
   final RequestItem request;
 
   const _RequestDetailsSheet({required this.request});
 
+// توطين وترجمة الحقول الصارمة لنصوص عربية صريحة باللوحة
   String _statusLabel() {
     switch (request.status) {
       case 'accepted':

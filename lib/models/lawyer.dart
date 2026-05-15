@@ -1,9 +1,11 @@
+/// كلاس مخصص لتمثيل بيانات "الخبير القانوني" بداخل التطبيق.
+/// يحتوي على تفاصيل دقيقة مثل (التقييم، عدد القضايا، الموقع الجغرافي، وأسعار الاستشارات).
 class Lawyer {
   final String id;
   final String name;
   final String specialty;
-  final double rating;
-  final int reviews;
+  final double rating; // متوسط تقييم المحامي من 5 نجوم
+  final int reviews; // عدد المراجعات الكلي
   final int cases;
   final String city;
   final String price;
@@ -41,6 +43,8 @@ class Lawyer {
     this.licenseNumber = '',
   });
 
+  /// تقوم بمعالجة البيانات المعقدة المستلمة؛ حيث تستخدم [tryParse] لضمان تحويل الأرقام
+  /// (التقييم والإحداثيات) بدقة وحماية التطبيق من الانهيار في حال كانت البيانات نصية.
   factory Lawyer.fromMap(Map<String, dynamic> map) {
     return Lawyer(
       id: (map['id'] ?? '').toString(),
@@ -72,6 +76,7 @@ class Lawyer {
     );
   }
 
+  /// تحويل كائن المحامي إلى Map لعمليات المزامنة أو الحفظ.
   Map<String, dynamic> toMap() {
     return {
       'id': id,

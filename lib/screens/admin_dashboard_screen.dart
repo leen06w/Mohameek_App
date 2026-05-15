@@ -13,18 +13,22 @@ class AdminDashboardScreen extends StatefulWidget {
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
+// تعريف التبويبات كـ Enum لضمان تنظيم التنقل وعدم حدوث أخطاء نصية بالتبويبات
 enum _AdminTab { overview, lawyers, users, cases }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _activeTab = 0;
-  _AdminTab activeTab = _AdminTab.overview;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  _AdminTab activeTab =
+      _AdminTab.overview; // التبويب النشط الافتراضي عند فتح الشاشة
+  final FirebaseFirestore _firestore =
+      FirebaseFirestore.instance; // إنشاء كائن للاتصال بقاعدة بيانات Firestore
 
+// دالة تسجيل الخروج وتنظيف الجلسة والتوجه لشاشة تسجيل الدخول
   Future<void> _logout() async {
-    await SessionService().clear();
+    await SessionService().clear(); // مسح بيانات الجلسة الحالية
     if (!mounted) return;
-    Navigator.of(context)
-        .pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
+    Navigator.of(context).pushNamedAndRemoveUntil(
+        AppRoutes.login, (_) => false); // إغلاق كافة الشاشات والعودة لـ Login
   }
 
   @override
@@ -39,7 +43,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Text('لوحة التحكم'),
           ],
         ),
-        // 👈 حذفنا الـ Builder اللي كان هنا لأنه مكرر
         actions: [
           IconButton(
             onPressed: () {},
@@ -50,14 +53,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       drawer: _AdminDrawer(
         activeTab: activeTab,
         onChangeTab: (tab) {
-          setState(() => activeTab = tab);
-          Navigator.pop(context);
+          setState(() => activeTab =
+              tab); // تحديث الواجهة عند اختيار تبويب من القائمة الجانبية
+          Navigator.pop(context); // إغلاق القائمة الجانبية بعد الاختيار
         },
         onLogout: _logout,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // شريط التبويبات العلوي للتنقل السريع بصيغة أفقية قابلة للتمرير
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -89,21 +94,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           // عرض المحتوى بناءً على التبويب المختار مع التحديث اللحظي
           if (activeTab == _AdminTab.overview) _buildOverview(),
           if (activeTab == _AdminTab.lawyers)
-            _buildFirestoreTab(
-                'Lawyers', _buildLawyerCard), // تغيير lawyers إلى Lawyers
+            _buildFirestoreTab('Lawyers', _buildLawyerCard),
           if (activeTab == _AdminTab.users)
-            _buildFirestoreTab(
-                'Users', _buildUserCard), // تغيير users إلى Users
+            _buildFirestoreTab('Users', _buildUserCard),
           if (activeTab == _AdminTab.cases)
-            _buildFirestoreTab(
-                'Cases', _buildCaseCard), // تغيير cases إلى Cases
+            _buildFirestoreTab('Cases', _buildCaseCard),
         ],
       ),
     );
   }
 
-  // --- تبويب نظرة عامة (جلب الإحصائيات الحقيقية) ---
-  // 1. حل مشكلة القوائم الممسوحة (إضافة التمرير الأفقي للتبويبات)
   Widget _buildTabSelector() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -119,17 +119,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+// بناء واجهة "نظرة عامة" التي تعرض بطاقات الإحصائيات العامة
   Widget _buildOverview() {
     return FutureBuilder<Map<String, dynamic>>(
-      future: _getStats(),
+      future: _getStats(), // جلب الإحصائيات دفعة واحدة من السيرفر
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+              child:
+                  CircularProgressIndicator()); // عرض مؤشر الانتظار أثناء جلب البيانات
         }
 
         final stats = snapshot.data ??
             {'lawyers': 0, 'users': 0, 'cases': 0, 'pending': 0};
-
+// مصفوفة كروت الإحصائيات لتسهيل عرضها وتجنب تكرار الكود
         final overviewStats = [
           _OverviewStat(
               label: 'المحامون',
@@ -156,6 +159,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // شبكة عرض الكروت بشكل متجاوب ومتناسق (Grid View)
             GridView.builder(
               itemCount: overviewStats.length,
               shrinkWrap: true,
@@ -211,10 +215,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // 👈 هذه الدالة هي اللي كانت ناقصة ومسببة الإيرور
   Widget _tabButton(String title, int index) {
-    final bool isSelected = _activeTab ==
-        index; // تأكدي إن اسم متغير التبويب النشط عندك هو _activeTab
+    final bool isSelected = _activeTab == index;
     return Padding(
       padding: const EdgeInsets.only(left: 10),
       child: InkWell(
@@ -247,25 +249,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // 2. تحديث الـ StreamBuilder ليدعم كل التبويبات حسب النوع
+// بناء التبويب المرتبط بالـ Firestore بشكل حي ولحظي (Real-time Stream)
   Widget _buildFirestoreTab(
       String tabType, Widget Function(DocumentSnapshot) itemBuilder) {
     Query query;
-    // تحديد الاستعلام بناءً على التبويب المختار
+    // تحديد الاستعلام المناسب بناءً على اسم التبويب المختار
     if (tabType == 'Lawyers') {
-      // تأكدي من مطابقة المسمى الممرر في السطر 67
       query = FirebaseFirestore.instance.collection('Users').where('role',
-          isEqualTo: 'lawyer'); // تأكدي هل هي lawyer أم Lawyer في الفايربيس
+          isEqualTo: 'lawyer'); // جلب المستخدمين ذوي رتبة محامي فقط
     } else if (tabType == 'Users') {
       query = FirebaseFirestore.instance
           .collection('Users')
-          .where('role', isEqualTo: 'user');
+          .where('role', isEqualTo: 'user'); // جلب المستخدمين العاديين فقط
     } else {
       query = FirebaseFirestore.instance.collection('Cases'); // جلب القضايا
     }
 
     return StreamBuilder<QuerySnapshot>(
-      stream: query.snapshots(),
+      stream: query
+          .snapshots(), // الاستماع لأي تحديثات تطرأ على قاعدة البيانات فوراً
       builder: (context, snapshot) {
         if (snapshot.hasError) return const Text('حدث خطأ في تحميل البيانات');
         if (!snapshot.hasData)
@@ -278,7 +280,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             child: Text('لا توجد بيانات حالياً'),
           ));
         }
-
+// تحويل المستندات المسترجعة إلى قائمة كروت واجهة مستخدم (UI Cards)
         return Column(
           children: snapshot.data!.docs.map((doc) => itemBuilder(doc)).toList(),
         );
@@ -286,23 +288,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+// بناء بطاقة عرض بيانات المحامين وجلب تفاصيلهم من مستند الفايربيس
   Widget _buildLawyerCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: _AdminEntityCard(
-        title: data['name'] ?? 'بدون اسم', // سيجلب "نورة العتيبي"
+        title: data['name'] ?? 'بدون اسم',
         subtitle: data['email'] ?? '',
         badgeText: data['status'] ?? 'نشط',
         badgeBackground: const Color(0xFFDCFCE7),
         badgeForeground: const Color(0xFF15803D),
         details: [
           'التخصص: ${data['lawyerSpecialty'] ?? 'غير محدد'}',
-          'الخبرة: ${data['experience'] ?? '0 سنوات'}', // استخدمنا experience كما في الفايربيس[cite: 1]
+          'الخبرة: ${data['experience'] ?? '0 سنوات'}', // جلب حقل الخبرة الفعلي من الفايربيس
           'السعر: ${data['price'] ?? '0'}',
         ],
         onEdit: () {},
-        onDelete: () => _deleteDoc('Users', doc.id),
+        onDelete: () =>
+            _deleteDoc('Users', doc.id), // مسح حساب المحامي من قاعدة البيانات
       ),
     );
   }
@@ -337,7 +341,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // 4. تعديل بطاقة القضايا لتظهر البيانات فعلياً
+  // بناء بطاقة القضايا وتفاصيلها من مستندات مجموعة Cases
   Widget _buildCaseCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return Padding(
@@ -357,11 +361,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           'التاريخ المفضل: ${data['preferredDate'] ?? 'غير محدد'}'
         ],
         onEdit: () {},
-        onDelete: () => _deleteDoc('Cases', doc.id),
+        onDelete: () =>
+            _deleteDoc('Cases', doc.id), // مسح مستند القضية نهائياً عند التأكيد
       ),
     );
   }
 
+// دالة لحساب وتعداد الإحصائيات للمجموعات المختلفة في Firebase دفعة واحدة
   Future<Map<String, dynamic>> _getStats() async {
     try {
       // 1. جلب المحامين فقط
@@ -387,8 +393,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           .get();
 
       return {
-        'lawyers': lawyersSnapshot
-            .docs.length, // تأكدي من تطابق هذا الاسم مع السطر 311
+        'lawyers': lawyersSnapshot.docs.length,
         'users': usersSnapshot.docs.length,
         'cases': casesSnapshot.docs.length,
         'pending': pendingSnapshot.docs.length,
@@ -399,11 +404,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
+// دالة الحذف وتأكيد الرغبة قبل الإجراء الفعلي في Firestore لسلامة البيانات
   Future<void> _deleteDoc(String collection, String id) async {
     final confirmed =
         await _confirmDelete('هل أنت متأكد من حذف هذا السجل نهائياً؟');
     if (confirmed) {
-      await _firestore.collection(collection).doc(id).delete();
+      await _firestore
+          .collection(collection)
+          .doc(id)
+          .delete(); // مسح من الفايربيس باستخدام الـ ID الفريد للمستند
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('تم الحذف من قاعدة البيانات')));
@@ -417,6 +426,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return (const Color(0xFFDBEAFE), const Color(0xFF1D4ED8));
   }
 
+// نافذة تأكيد الحذف المنبثقة للأدمن
   Future<bool> _confirmDelete(String message) async {
     final result = await showDialog<bool>(
       context: context,
@@ -455,7 +465,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 }
-// (باقي الودجات Drawer و TabButton تبقى كما هي في ملفك الأصلي)
+
 // --- الودجات المخصصة للوحة التحكم ---
 
 class _AdminDrawer extends StatelessWidget {
@@ -484,10 +494,9 @@ class _AdminDrawer extends StatelessWidget {
               _drawerTile(
                   Icons.dashboard_outlined, 'نظرة عامة', _AdminTab.overview),
               _drawerTile(Icons.shield_outlined, 'المحامون', _AdminTab.lawyers),
-              _drawerTile(Icons.groups_outlined, 'المستخدمون',
-                  _AdminTab.users), // الخيار الناقص
-              _drawerTile(Icons.description_outlined, 'القضايا',
-                  _AdminTab.cases), // الخيار الناقص
+              _drawerTile(Icons.groups_outlined, 'المستخدمون', _AdminTab.users),
+              _drawerTile(
+                  Icons.description_outlined, 'القضايا', _AdminTab.cases),
               const Spacer(),
               ListTile(
                 leading: const Icon(Icons.logout, color: Colors.red),

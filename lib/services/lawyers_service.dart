@@ -1,10 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // الربط مع قاعدة بيانات جوجل السحابية
 import '../models/lawyer.dart';
 
+/// خدمة إدارة بيانات المحامين والخبراء القانونيين.
+/// تتولى هذه الخدمة عمليات الاستعلام (Querying) من مجموعة Users بداخل Firestore.
 class LawyersService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// 🔍 جلب قائمة المحامين الحقيقيين من الفايربيس
+  /// جلب كافة المحامين: تقوم بتصفية المستخدمين بناءً على الدور (role == lawyer).
   Future<List<Lawyer>> fetchLawyers() async {
     try {
       final snapshot = await _db
@@ -12,6 +14,7 @@ class LawyersService {
           .where('role', isEqualTo: 'lawyer')
           .get();
 
+      // تحويل الوثائق (Documents) القادمة من Firestore إلى قائمة من كائنات Lawyer البرمجية
       return snapshot.docs.map((doc) {
         final data = doc.data();
 
@@ -42,7 +45,7 @@ class LawyersService {
     }
   }
 
-  /// 📄 جلب بيانات محامي واحد عن طريق الـ ID
+  /// جلب بيانات محامي واحد: تستخدم عند فتح صفحة تفصيلية لمحامي معين عبر معرّفه الفريد (ID)
   Future<Lawyer?> fetchLawyerById(String id) async {
     try {
       final doc = await _db.collection('Users').doc(id).get();
